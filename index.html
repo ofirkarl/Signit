@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#F7F3EA">
-<title>Signit</title>
+<title>Signit מסמכים</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -14,7 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <style>
-:root{--bg:#F7F3EA;--card:#fff;--ink:#22303C;--mut:#6B7580;--line:#E3DCCD;--acc:#F3C744;--pen:#1f37c4;--tab:#ff6a2b;--ok:#11804a;--warn:#b25b00;--bad:#D2402F;--navh:64px;color-scheme:light}
+:root{--bg:#F7F3EA;--card:#fff;--ink:#22303C;--mut:#6B7580;--line:#E3DCCD;--acc:#F3C744;--pen:#1f37c4;--tab:#ff6a2b;--ok:#11804a;--warn:#b25b00;--bad:#D2402F;--navh:0px;color-scheme:light}
 *{box-sizing:border-box;min-width:0}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Heebo,Arial,sans-serif;overflow-x:clip;-webkit-tap-highlight-color:transparent}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -56,15 +56,6 @@ button,label[for]{cursor:pointer}
 .conn{font-weight:700}.conn.on{color:var(--ok)}.conn.off{color:var(--mut)}
 .sigpv{height:84px;background:#fff;border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;margin:6px 0 8px;color:#8a8f99;font-size:14px}
 .sigpv img{max-height:72px;max-width:90%}
-/* nav */
-#nav{position:fixed;inset:auto 0 0 0;z-index:40;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-#nav button{flex:1;height:var(--navh);border:0;background:transparent;display:grid;place-items:center;align-content:center;gap:2px;font-size:13px;color:var(--mut)}
-#nav button span{font-size:21px;line-height:1.3;padding:0 16px;border-radius:999px}
-#nav button[aria-current=page]{color:var(--ink);font-weight:700}
-#nav button[aria-current=page] span{background:var(--acc)}
-/* car */
-#v-car{padding-bottom:0}
-#carFrame{position:fixed;inset:0 0 calc(var(--navh) + env(safe-area-inset-bottom)) 0;width:100%;height:calc(100% - var(--navh) - env(safe-area-inset-bottom));border:0;background:var(--bg)}
 /* doc */
 #v-doc{padding-bottom:0}
 .note{max-width:920px;margin:10px auto 0;background:var(--card);border-radius:12px;padding:10px 14px;border-inline-start:4px solid var(--acc);white-space:pre-wrap}
@@ -210,37 +201,12 @@ select.chip{padding:0 8px}
 </head>
 <body>
 
-<!-- ============ בית ============ -->
-<section class="view" id="v-home" hidden>
- <header class="bar"><span class="brand"><img src="icon-192.png" alt=""><h1>Signit</h1></span><span style="flex:1"></span><button class="ib" data-go="settings" aria-label="הגדרות" title="הגדרות">⚙</button></header>
- <div class="wrap">
-  <div class="card"><button class="hero" data-go="car"><span class="ic" style="background:#F3C744">🚗</span><span><h2>הסכמי רכב</h2><p>הסכם חדש, רשימת הסכמים ותמונות הרכב</p></span><span class="go">‹</span></button></div>
-  <div class="card">
-   <button class="hero" data-go="docs"><span class="ic" style="background:#e6eaff">📄</span><span><h2>מסמכים לחתימה</h2><p>מילוי וחתימה על PDF, שליחה לחתימה וסיכום תנאים</p></span><span class="go">‹</span></button>
-   <div class="row mt"><label class="btn1" for="file">פתיחת PDF</label><button class="btn2" data-go="docs">המסמכים שלי</button></div>
-  </div>
-  <div id="homeDraft"></div>
-  <div id="homeDocs"></div>
- </div>
-</section>
-
-<!-- ============ רכב ============ -->
-<section class="view" id="v-car" hidden>
- <div id="carSetup" class="wrap" hidden>
-  <div class="center"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:18px"><h1>הסכמי רכב</h1>
-   <p class="muted">פעם אחת בלבד: הדביקו את הקישור הפרטי לניהול Signit (נגמר ב־<b>?k=</b> ומספר ארוך). הוא נשמר רק במכשיר הזה.</p></div>
-  <div class="fld"><input id="carUrl" class="ltr" placeholder="https://script.google.com/macros/s/…/exec?k=…" autocomplete="off" aria-label="הקישור הפרטי"></div>
-  <p class="muted" id="carErr" style="color:var(--bad)"></p>
-  <button class="btn1 wide" id="carSave">שמירה וכניסה</button>
- </div>
-</section>
-
 <!-- ============ מסמכים ============ -->
 <section class="view" id="v-docs" hidden>
- <header class="bar"><h1>מסמכים</h1><label class="ib" for="file" aria-label="פתיחת PDF" title="פתיחת PDF">＋</label></header>
+ <header class="bar"><span class="brand"><img src="icon-192.png" alt=""><h1>Signit מסמכים</h1></span><span style="flex:1"></span><button class="ib" data-go="settings" aria-label="הגדרות" title="הגדרות">⚙</button></header>
  <div class="wrap">
   <label class="btn1 wide" for="file">פתיחת PDF מהמכשיר</label>
-  <p class="muted">אפשר גם לשתף לכאן PDF ישירות מוואטסאפ או מהמייל: שיתוף ← Signit.</p>
+  <p class="muted">אפשר גם לשתף לכאן PDF ישירות מוואטסאפ או מהמייל: שיתוף ← Signit מסמכים.</p>
   <div id="docsDraft"></div>
   <div class="sec">המסמכים שלי</div>
   <p class="muted" id="docsInfo"></p>
@@ -275,8 +241,6 @@ select.chip{padding:0 8px}
    <div class="fld mt"><label for="aboutMe">עליי</label><textarea id="aboutMe" style="min-height:70px"></textarea></div>
    <div class="fld"><label for="prio">נושאים שהסוכן בודק, נושא בכל שורה</label><textarea id="prio"></textarea></div>
   </div>
-  <div class="sec">הסכמי רכב</div>
-  <div class="card"><p class="muted" style="margin-top:0" id="carS"></p><button class="btn2 wide" id="carReset">החלפת הקישור הפרטי</button></div>
   <p class="muted" style="text-align:center;margin-top:20px">גרסה <span id="buildV"></span></p>
  </div>
 </section>
@@ -304,11 +268,6 @@ select.chip{padding:0 8px}
 <!-- ============ הודעה ============ -->
 <section class="view" id="v-msg" hidden><div class="wrap center"><h1 id="msgH"></h1><p class="muted" id="msgP"></p><div class="row" id="msgA" style="justify-content:center"></div></div></section>
 
-<nav id="nav" hidden>
- <button data-go="home"><span>🏠</span>בית</button>
- <button data-go="car"><span>🚗</span>הסכמי רכב</button>
- <button data-go="docs"><span>📄</span>מסמכים</button>
-</nav>
 
 <input type="file" id="file" accept="application/pdf,.pdf" hidden>
 
@@ -371,7 +330,7 @@ select.chip{padding:0 8px}
 
 <script>
 {
-const BUILD='2026-11-25 18:47';
+const BUILD='2026-11-25 18:55';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -415,17 +374,14 @@ $('#toastU').onclick=()=>{undo();$('#toast').classList.remove('on')};
 
 /* ================= views, nav and the Android back button ================= */
 let cur='',layers=[];
-const NAV=['home','car','docs','settings'];
+
 function show(v){if(v===cur)return;cur=v;
  $$('.view').forEach(e=>e.hidden=e.id!=='v-'+v);
- $('#nav').hidden=MODE==='signer'||!NAV.includes(v);
- $$('#nav button').forEach(b=>{if(b.dataset.go===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
- const fr=$('#carFrame');if(fr)fr.hidden=v!=='car';
- if(v==='home')loadHome();if(v==='docs')loadDocs();if(v==='car')openCar();if(v==='settings')loadSettings();
+ if(v==='docs')loadDocs();if(v==='settings')loadSettings();
  if(v!=='doc')window.scrollTo(0,0)}
 function go(v){if(v===cur)return;history.pushState({v},'');show(v)}
-function back(){if(history.state&&history.state.v&&history.length>1)history.back();else show('home')}
-addEventListener('popstate',e=>{if(layers.length){const l=layers.pop();if(l==='sheet')hideSheet();else if(l==='field')hideField();return}show((e.state&&e.state.v)||'home')});
+function back(){if(history.state&&history.state.v&&history.length>1)history.back();else show('docs')}
+addEventListener('popstate',e=>{if(layers.length){const l=layers.pop();if(l==='sheet')hideSheet();else if(l==='field')hideField();return}show((e.state&&e.state.v)||'docs')});
 function pushLayer(l){layers.push(l);history.pushState({v:cur,l:layers.length},'')}
 function swapLayer(to){layers[layers.length-1]=to}
 document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g){e.preventDefault();go(g.dataset.go)}if(e.target.closest('[data-back]'))back()});
@@ -461,16 +417,7 @@ PROFILE.forEach(([k])=>{const i=$('#pf-'+k);i.value=S.profile[k]||'';i.oninput=(
 const prioEl=$('#prio'),aboutEl=$('#aboutMe');prioEl.value=LS.get('pf.prio',DEF_PRIO.join('\n'));aboutEl.value=LS.get('pf.about',DEF_ABOUT);
 prioEl.oninput=()=>{LS.set('pf.prio',prioEl.value);pushSettings()};aboutEl.oninput=()=>{LS.set('pf.about',aboutEl.value);pushSettings()};
 $('#srvUrl').value=S.srv?.url||'';$('#srvKey').value=S.srv?.k||'';
-function loadSettings(){renderSig();$('#carS').textContent=carLink()?'הקישור הפרטי שמור במכשיר הזה.':'עוד לא הוגדר קישור.'}
-
-/* ================= car agreements (Signit) ================= */
-const CARKEY='signit_owner_url';
-const carValid=u=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[0-9a-zA-Z]{16,}$/.test(u);
-const carLink=()=>{try{return localStorage.getItem(CARKEY)||''}catch(e){return''}};
-function openCar(){const u=carLink();if(!u){$('#carSetup').hidden=false;return}$('#carSetup').hidden=true;
- if(!$('#carFrame')){const f=document.createElement('iframe');f.id='carFrame';f.title='הסכמי רכב';f.allow='camera; clipboard-write';f.src=u;document.body.appendChild(f)}$('#carFrame').hidden=false}
-$('#carSave').onclick=()=>{const v=$('#carUrl').value.trim();if(!carValid(v)){$('#carErr').textContent='זה לא נראה כמו הקישור הפרטי. צריך את הקישור המלא, כולל ?k=';return}try{localStorage.setItem(CARKEY,v)}catch(e){}$('#carErr').textContent='';openCar()};
-$('#carReset').onclick=()=>{try{localStorage.removeItem(CARKEY)}catch(e){}const f=$('#carFrame');if(f)f.remove();$('#carUrl').value='';loadSettings();go('car')};
+function loadSettings(){renderSig()}
 
 /* ================= drafts ================= */
 const IDB={db:null,async open(){if(this.db)return this.db;return this.db=await new Promise((res,rej)=>{try{const r=indexedDB.open('signitdocs',1);r.onupgradeneeded=()=>r.result.createObjectStore('d');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})},
@@ -486,9 +433,6 @@ async function draftCard(box){const d=await IDB.get();if(!d||!d.bytes){box.inner
 const STL={pending:'ממתין לחתימה',signed:'נחתם',self:'חתמתי ושמרתי'};
 const fmtD=s=>s?new Date(s).toLocaleDateString('he-IL',{day:'numeric',month:'short'}):'';
 let DOCS=[];
-function loadHome(){draftCard($('#homeDraft'));const box=$('#homeDocs');if(!S.srv){box.innerHTML='';return}
- own('listDocs').then(L=>{DOCS=L;const pend=L.filter(d=>d.status==='pending').length,sig=L.filter(d=>d.status==='signed').slice(0,2);
-  box.innerHTML=(pend||sig.length)?`<div class="sec">עדכונים</div><div class="card">${pend?`<button class="mi" data-go="docs"><span class="i">⏳</span><span>${pend} ממתינים לחתימה<small>לחצו לרשימה</small></span></button>`:''}${sig.map(d=>`<button class="mi" data-go="docs"><span class="i">✓</span><span>${esc(d.name)}<small>נחתם ${esc(fmtD(d.signedAt))}${d.signer?' · '+esc(d.signer):''}</small></span></button>`).join('')}</div>`:''}).catch(()=>{box.innerHTML=''})}
 async function loadDocs(){draftCard($('#docsDraft'));const L=$('#docsL'),info=$('#docsInfo');
  if(!S.srv){info.innerHTML='כדי לראות כאן מסמכים ששלחת או שמרת, חברו את שרת המסמכים ב<a href="#" data-go="settings">הגדרות</a>.';L.innerHTML='';return}
  info.innerHTML='<span class="spin"></span>טוען…';try{DOCS=await own('listDocs');info.textContent=DOCS.length?'':'עוד אין מסמכים. מסמך שתשלח לחתימה או תשמור ב־Drive יופיע כאן.';
@@ -975,8 +919,8 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdat
 renderSig();
 if(MODE==='signer'){history.replaceState({v:'msg'},'');startSigner()}
 else{
- const start=(location.hash||'').replace('#','');history.replaceState({v:'home'},'',location.pathname);show('home');
- if(['car','docs','settings'].includes(start))go(start);
+ const start=(location.hash||'').replace('#','');history.replaceState({v:'docs'},'',location.pathname);show('docs');
+ if(start==='settings')go('settings');
  connUI(!!S.srv);if(S.srv)own('ping').then(r=>{S.hasApi=r.hasApiKey;connUI(true,r.email);pullSettings()}).catch(()=>connUI(false));
  if(Q.get('shared')&&'caches' in window){caches.open('sd-shared').then(async c=>{const r=await c.match('./shared-file');if(!r){toast('לא הגיע קובץ מהשיתוף');return}const name=decodeURIComponent(r.headers.get('X-Name')||'מסמך.pdf');const buf=new Uint8Array(await r.arrayBuffer());await c.delete('./shared-file');openBytes(buf,name.replace(/\.pdf$/i,''))}).catch(()=>{})}
  if('launchQueue' in window)launchQueue.setConsumer(async p=>{if(p.files&&p.files.length){const f=await p.files[0].getFile();openFile(f)}});
