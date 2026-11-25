@@ -375,7 +375,7 @@ const fromB64=b=>{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.len
 const TYPES={name:{l:'שם מלא',p:'name'},id:{l:'ת.ז',p:'id'},address:{l:'כתובת',p:'address'},phone:{l:'טלפון',p:'phone'},email:{l:'דוא״ל',p:'email'},biz:{l:'מס׳ עוסק',p:'biz'},date:{l:'תאריך'},dday:{l:'תאריך - יום'},dmonth:{l:'תאריך - חודש'},dyear:{l:'תאריך - שנה'},text:{l:'טקסט'},check:{l:'סימון ✓'},sig:{l:'חתימה'},ini:{l:'ראשי תיבות'}};
 const PROFILE=[['name','שם מלא'],['id','מספר תעודת זהות'],['address','כתובת'],['phone','טלפון'],['email','דוא״ל'],['biz','מספר עוסק / ח.פ']];
 const OTHER=/מעסיק|מעביד|החברה|המזמין|ההפקה|employer|company/i;
-const RULES=[[/ת\.?\s?ז|תעודת\s*זהות|מס['׳]?\s*זהות|\bID\b/i,'id'],[/ח\.?\s?פ\b|ע\.?\s?מ\b|עוסק/i,'biz'],[/דוא["״]?ל|אימייל|מייל|e-?mail/i,'email'],[/טלפון|נייד|טל['׳]|phone|mobile/i,'phone'],[/כתובת|address/i,'address'],[/תאריך|date/i,'date'],[/שם|name/i,'name']];
+const RULES=[[/ת\.?\s?ז|תעודת\s*זהות|מס['׳]?\s*זהות|\bID\b/i,'id'],[/ח\.?\s?פ(?![א-ת])|ע\.?\s?מ(?![א-ת])|עוסק/i,'biz'],[/דוא["״]?ל|אימייל|מייל|e-?mail/i,'email'],[/טלפון|נייד|טל['׳]|phone|mobile/i,'phone'],[/כתובת|address/i,'address'],[/תאריך|date/i,'date'],[/שם|name/i,'name']];
 function classify(s){const a=classify1(s);if(a!=='text'||!HEB.test(s||''))return a;return classify1([...s].reverse().join(''))}
 function classify1(s){s=(s||'').trim();if(/ראשי\s*תיבות|initials/i.test(s))return'ini';if(/חתימ|signature/i.test(s))return'sig';
  if(/(^|\s)היום[:\s]*$/.test(s))return'date';if(/(^|\s)ב?יום[:\s]*$/.test(s))return'dday';if(/(^|\s)[לב]?חודש[:\s]*$/.test(s))return'dmonth';if(/(^|\s)ב?שנ[תה][:\s]*$/.test(s))return'dyear';if(OTHER.test(s))return'text';for(const[r,t]of RULES)if(r.test(s))return t;return'text'}
@@ -503,16 +503,51 @@ async function openBytes(bytes,name,preset){
  const txt=[];for(const p of S.pages){txt.push(`--- עמוד ${p.n} ---\n`+await detectPage(p,!preset))}S.text=txt.join('\n');
  if(preset){S.fields=preset.fields||[];S.summary=preset.summary||null;if(S.summary)renderSummary(S.summary)}
  else{const n=autofill(true),sg=autoSign();S.fields.forEach(fit);toast(`זוהו ${S.fields.length} שדות`+(n?`, ${n} מולאו מהפרטים שלך`:'')+(sg?`, החתימה שלך הוצבה ב־${sg}`:''))}
- S.ready=true;renderFields();S.pages.forEach(refineLines);saveDraft();sizeBar();
+ S.ready=true;renderFields();saveDraft();sizeBar();
 }
 
 /* ================= page rendering ================= */
 const zoomNow=()=>(window.visualViewport&&visualViewport.scale)||1;
-function darkRuns(p,x0,x1,y0,y1,gapPt){const c=p.canvas;if(!c||!c.width)return[];const sc=c.width/p.vp.width;let ctx;try{ctx=c.getContext('2d',{willReadFrequently:true})}catch(e){return[]}
- const X0=Math.max(0,Math.floor(x0*sc)),X1=Math.min(c.width,Math.ceil(x1*sc)),Y0=Math.max(0,Math.floor(y0*sc)),Y1=Math.min(c.height,Math.ceil(y1*sc)),W=X1-X0,H=Y1-Y0;if(W<2||H<1)return[];
- let d;try{d=ctx.getImageData(X0,Y0,W,H).data}catch(e){return[]}const gap=Math.max(1.5,gapPt*sc),out=[];
- for(let r=0;r<H;r++){let st=-1,last=-1e9;for(let i=0;i<W;i++){const k=(r*W+i)*4;if(d[k+3]>100&&d[k]+d[k+1]+d[k+2]<420){if(st<0||i-last>gap){if(st>=0)out.push({y:(Y0+r)/sc,x:(X0+st)/sc,w:(last-st+1)/sc});st=i}last=i}}if(st>=0)out.push({y:(Y0+r)/sc,x:(X0+st)/sc,w:(last-st+1)/sc})}
+/* a black/white map of each page, used to find the empty lines exactly */
+async function scanPage(p){if(p.scan)return;const sc=1.6,vp=p.page.getViewport({scale:sc}),c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+ const ctx=c.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);try{await p.page.render({canvasContext:ctx,viewport:vp}).promise}catch(e){return}
+ const W=c.width,H=c.height,d=ctx.getImageData(0,0,W,H).data,bm=new Uint8Array(W*H);for(let i=0,j=0;j<bm.length;i+=4,j++){const r=d[i],g=d[i+1],bb=d[i+2];bm[j]=r+g+bb<510?(Math.max(r,g,bb)-Math.min(r,g,bb)>90?2:1):0}p.scan={b:bm,W,H,s:sc}}
+function darkRuns(p,x0,x1,y0,y1,gapPt){const P=p.scan;if(!P)return[];const{b,W,H,s:sc}=P;const X0=clamp(Math.floor(x0*sc),0,W),X1=clamp(Math.ceil(x1*sc),0,W),Y0=clamp(Math.floor(y0*sc),0,H),Y1=clamp(Math.ceil(y1*sc),0,H),gap=Math.max(1,gapPt*sc),out=[];
+ for(let y=Y0;y<Y1;y++){const row=y*W;let st=-1,last=-1e9;for(let x=X0;x<X1;x++){if(b[row+x]){if(st<0||x-last>gap){if(st>=0)out.push({y:y/sc,x:st/sc,w:(last-st+1)/sc});st=x}last=x}}if(st>=0)out.push({y:y/sc,x:st/sc,w:(last-st+1)/sc})}return out}
+function inkFrac(P,x0,x1,y0,y1){x0=clamp(x0,0,P.W);x1=clamp(x1,0,P.W);y0=clamp(y0,0,P.H);y1=clamp(y1,0,P.H);let n=0,t=0;for(let y=y0;y<y1;y++){const row=y*P.W;for(let x=x0;x<x1;x++){n+=P.b[row+x]?1:0;t++}}return t?n/t:0}
+/* every empty line on the page: thin horizontal line, nothing written above or below it */
+function findBlanks(p){const P=p.scan;if(!P)return[];const{b,W,H,s:sc}=P,minL=Math.round(11*sc),maxL=W*.8,raw=[];
+ for(let y=1;y<H-1;y++){const row=y*W;let st=-1,last=-1e9,cnt=0;
+  const flush=()=>{if(st>=0){const L=last-st+1;if(L>=minL&&L<=maxL){const dens=cnt/L;if(dens>=.85||dens>=.2)raw.push({y,x0:st,x1:last,dens})}}};
+  for(let x=0;x<W;x++){if(b[row+x]){if(st<0||x-last>5){flush();st=x;cnt=0}last=x;cnt++}}flush()}
+ const groups=[];for(const r of raw){const g=groups.find(g=>r.y-g.yb<=1&&r.y>g.yb&&Math.min(r.x1,g.x1)-Math.max(r.x0,g.x0)>.8*Math.min(r.x1-r.x0,g.x1-g.x0));if(g){g.yb=r.y;g.x0=Math.min(g.x0,r.x0);g.x1=Math.max(g.x1,r.x1)}else groups.push({y:r.y,yb:r.y,x0:r.x0,x1:r.x1,dens:r.dens})}
+ const out=[];for(const g of groups){const th=g.yb-g.y+1;if(th>4)continue;const ix0=g.x0+2,ix1=g.x1-2;
+  const above=inkFrac(P,ix0,ix1,g.y-Math.round(7*sc),g.y-Math.round(1.5*sc)),below=inkFrac(P,ix0,ix1,g.yb+2,g.yb+Math.round(4*sc));
+  const dotted=g.dens<.85;if(above>(dotted?.05:.1)||below>(dotted?.05:.12))continue;
+  let col=0,tot=0;for(let x=g.x0;x<=g.x1;x++){const v=b[g.y*W+x];if(v){tot++;if(v===2)col++}}if(tot&&col/tot>.5)continue;
+  out.push({x:g.x0/sc,w:(g.x1-g.x0+1)/sc,ly:g.y/sc,dotted})}
  return out}
+/* the words next to a line, to know what it asks for.
+   pdf.js may scramble the order of Hebrew mixed with ____, so words are matched to the ink on the page by width */
+function lineInfo(p,bl,fh,blanks){const items=(p.items||[]).filter(it=>it.s.trim()&&it.base>=bl.ly-fh*1.6&&it.base<=bl.ly+fh*.6);if(!items.length)return null;
+ const base=items.map(i=>i.base).sort((a,b)=>a-b)[items.length>>1],key=Math.round(base);p.lines=p.lines||{};if(p.lines[key])return p.lines[key];
+ const P=p.scan,sc=P.s,yA=Math.floor((base-fh*.85)*sc),yB=Math.ceil((base+fh*.25)*sc),xMin=Math.max(0,Math.floor((Math.min(...items.map(i=>i.x))-6)*sc)),xMax=Math.min(P.W,Math.ceil((Math.max(...items.map(i=>i.x+i.w))+6)*sc));
+ const inBlank=x=>blanks.some(o=>Math.abs(o.ly-bl.ly)<fh*.8&&x>=o.x*sc-1&&x<=(o.x+o.w)*sc+1);const cl=[];let cur=null;const gap=fh*.9*sc;
+ for(let x=xMin;x<xMax;x++){let ink=0;if(!inBlank(x))for(let y=Math.max(0,yA);y<Math.min(P.H,yB);y++)if(P.b[y*P.W+x]){ink=1;break}
+  if(ink){if(cur&&x-cur.x1<=gap&&!(blanks.some(o=>Math.abs(o.ly-bl.ly)<fh*.8&&o.x*sc>cur.x1&&o.x*sc<x)))cur.x1=x;else{cur={x0:x,x1:x};cl.push(cur)}}}
+ const segs=[];for(const it of items){mctx.font=`${it.h}px Arial`;const full=mctx.measureText(it.s).width||1,k=it.w/full;
+  for(const t of it.s.split(/_{2,}|[.…]{4,}/)){const w=t.trim();if(!w||/^[\s:.\-]+$/.test(w))continue;segs.push({t:w,w:mctx.measureText(w).width*k})}}
+ const C=cl.map(c=>({x:c.x0/sc,w:(c.x1-c.x0+1)/sc,t:''})),pairs=[];
+ segs.forEach((sg,i)=>C.forEach((c,j)=>pairs.push({i,j,e:Math.abs(sg.w-c.w)/Math.max(sg.w,c.w,1)})));pairs.sort((a,b)=>a.e-b.e);const ui=new Set(),uj=new Set();
+ for(const q of pairs){if(q.e>.45)break;if(ui.has(q.i)||uj.has(q.j))continue;ui.add(q.i);uj.add(q.j);C[q.j].t=segs[q.i].t}
+ return p.lines[key]={C,items}}
+function lineLabel(p,bl,fh,blanks){const L=lineInfo(p,bl,fh,blanks);const R=bl.x+bl.w,rtl=S.rtl>=0;
+ if(L){const right=L.C.filter(c=>c.t&&c.x>=R-2&&c.x-R<140).sort((a,b)=>a.x-b.x)[0],left=L.C.filter(c=>c.t&&c.x+c.w<=bl.x+2&&bl.x-(c.x+c.w)<140).sort((a,b)=>b.x-a.x)[0];
+  const words=(c,end)=>{const w=c.t.replace(/[_.…]+/g,' ').trim().split(/\s+/);return(end?w.slice(-4):w.slice(0,4)).join(' ')};
+  const pick=rtl?(right?words(right,true):left?words(left,false):''):(left?words(left,true):right?words(right,false):'');if(pick)return pick.replace(/[:\s]+$/,'').slice(-40)}
+ const under=(p.items||[]).filter(it=>it.s.trim()&&it.base>bl.ly&&it.base<bl.ly+fh*2.2&&it.x<bl.x+bl.w&&it.x+it.w>bl.x).map(it=>it.s.trim());
+ return under.join(' ').replace(/[:\s]+$/,'').slice(-40)}
+const nearText=(p,bl,fh)=>(p.items||[]).some(it=>it.s.trim()&&((it.base>=bl.ly-fh*1.6&&it.base<=bl.ly+fh*.6&&it.x<bl.x+bl.w+200&&it.x+it.w>bl.x-200)||(it.base>bl.ly&&it.base<bl.ly+fh*2.2&&it.x<bl.x+bl.w&&it.x+it.w>bl.x)));
 const fontNear=(p,y)=>{let best=null,bd=1e9;for(const it of p.items||[]){if(!it.s.trim())continue;const d=Math.abs(it.base-y);if(d<bd){bd=d;best=it}}return best&&bd<40?clamp(best.h,6,30):11};
 /* the line segment under a point (for long-press and the + tool) */
 function snapLine(p,x,y){const fh=fontNear(p,y);const runs=darkRuns(p,0,p.vp.width,y-fh*.9,y+fh*.9,.6).filter(r=>r.w>=Math.max(8,fh*1.3)&&x>=r.x-8&&x<=r.x+r.w+8);
@@ -540,7 +575,7 @@ async function renderPage(p,force){const W=p.wrap.clientWidth;if(!W)return;p.wra
  const vp=p.page.getViewport({scale:px/p.vp.width});if(p.task)try{p.task.cancel()}catch(e){}
  const c=document.createElement('canvas');c.width=Math.floor(vp.width);c.height=Math.floor(vp.height);
  p.task=p.page.render({canvasContext:c.getContext('2d'),viewport:vp});try{await p.task.promise}catch(e){return}
- p.wrap.replaceChild(c,p.canvas);p.canvas=c;p.drawn=true;refineLines(p)}
+ p.wrap.replaceChild(c,p.canvas);p.canvas=c;p.drawn=true}
 let rT;const rerender=()=>{clearTimeout(rT);rT=setTimeout(()=>{const vh=innerHeight;S.pages.forEach(p=>{const r=p.wrap.getBoundingClientRect();if(r.bottom>-vh&&r.top<vh*2)renderPage(p)})},250)};
 const pagesRO=new ResizeObserver(()=>{S.pages.forEach(p=>p.wrap.style.setProperty('--k',p.wrap.clientWidth/p.vp.width));rerender()});pagesRO.observe($('#pages'));
 if(window.visualViewport)visualViewport.addEventListener('resize',rerender);addEventListener('scroll',()=>{if(cur==='doc'&&zoomNow()>1.05)rerender()},{passive:true});
@@ -587,17 +622,13 @@ async function detectPage(p,addFields){
  S.rtl=(S.rtl||0)+tc.items.reduce((a,i)=>a+(i.dir==='rtl'&&HEB.test(i.str)?1:i.dir==='ltr'&&/[a-z]/i.test(i.str)?-1:0),0);
  const items=tc.items.filter(i=>typeof i.str==='string').map(i=>{const tx=mul(vp.transform,i.transform);const fh=Math.hypot(tx[2],tx[3])||Math.abs(i.height)||10;return{s:i.str,dir:i.dir,x:tx[4],base:tx[5],y:tx[5]-fh,h:fh,w:i.width}});
  p.items=items;
+ if(MODE==='owner'&&!addFields)scanPage(p);
  if(addFields){
   const formRects=out.slice();
-  for(const it of items){BL.lastIndex=0;let m;while((m=BL.exec(it.s))){const n=it.s.length||1,i=m.index,L=m[0].length;
-    const f0=it.dir==='rtl'?1-(i+L)/n:i/n,f1=it.dir==='rtl'?1-i/n:(i+L)/n;const x=it.x+it.w*f0,w=it.w*(f1-f0);if(w<18)continue;
-    let label=it.s.slice(0,i).replace(/[_.…:\-\s]+$/,'').trim().split(/\s+/).slice(-4).join(' ');
-    const after=it.s.slice(i+L).replace(/^[_.…:\-\s]+/,'').trim();
-    if(!label)label=neighborLabel(items,it,x,w);
-    const t=classify(label||after),h=t==='sig'?32:t==='ini'?28:clamp(it.h*1.5,12,24);
-    const r={x,y:it.base-h+2,w,h};
-    if(formRects.some(f=>overlap(f,r)>.3))continue;
-    const nf=mk(p.n,r,t,label||after,'auto');nf.base=it.base;nf.fh=it.h;nf.ix0=it.x;nf.ix1=it.x+it.w;nf.kind=/^[_\-]/.test(m[0])?'u':'d';out.push(nf)}}
+  if(MODE==='owner'){await scanPage(p);
+   const blanks=findBlanks(p);for(const bl of blanks){const fh=fontNear(p,bl.ly-2);const r0={x:bl.x,y:bl.ly-12,w:bl.w,h:12};if(formRects.some(f=>overlap(f,r0)>.2))continue;if(!nearText(p,bl,fh))continue;
+    const label=lineLabel(p,bl,fh,blanks),t=classify(label);let h=clamp(fh*1.5,9,26);if(t==='sig'||t==='ini')h=clamp(bl.w*.3,22,46);
+    const nf=mk(p.n,{x:bl.x,y:bl.ly-h,w:bl.w,h},t,label,'auto');nf.ly=bl.ly;nf.fh=fh;nf.w0=bl.w;nf.l0=bl.x;nf.r0=bl.x+bl.w;nf.c0=bl.x+bl.w/2;out.push(nf)}}
   for(const it of items){const s=it.s.trim();if(s.length>30||!/חתימ|signature/i.test(s)||BL1.test(s))continue;
    if(out.some(f=>f.type==='sig'&&Math.abs((f.y+f.h)-it.base)<45&&f.x<it.x+it.w+170&&f.x+f.w>it.x-170))continue;
    const r=/:\s*$/.test(s)||/^:/.test(s)?{x:it.dir==='rtl'?it.x-150:it.x+it.w+8,y:it.base-30,w:140,h:32}:{x:it.x+it.w/2-70,y:it.y-38,w:140,h:32};
