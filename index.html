@@ -277,6 +277,7 @@ select.chip{padding:0 8px}
   </div>
   <div class="sec">הסכמי רכב</div>
   <div class="card"><p class="muted" style="margin-top:0" id="carS"></p><button class="btn2 wide" id="carReset">החלפת הקישור הפרטי</button></div>
+  <p class="muted" style="text-align:center;margin-top:20px">גרסה <span id="buildV"></span></p>
  </div>
 </section>
 
@@ -365,10 +366,12 @@ select.chip{padding:0 8px}
   <div class="mact"><label><input type="checkbox" id="remember"> לזכור את החתימה</label><button class="btn2" id="padCancel">ביטול</button><button class="btn1" id="padOk">שמירה</button></div>
  </div>
 </div>
+<div id="updBar" hidden style="position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:50%;transform:translateX(-50%);z-index:90;background:#1f37c4;color:#fff;border-radius:14px;padding:10px 14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 20px #0003;font-size:15px;max-width:94vw"><span>יש גרסה חדשה של Signit</span><button id="updB" style="border:0;border-radius:10px;background:#fff;color:#1f37c4;font-weight:700;min-height:36px;padding:0 12px">עדכון</button></div>
 <div id="toast" role="status"><span id="toastT"></span><button id="toastU" hidden>בטל</button></div>
 
 <script>
 {
+const BUILD='2026-11-25 18:45';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -963,6 +966,11 @@ document.addEventListener('keydown',e=>{const typing=/INPUT|TEXTAREA|SELECT/.tes
  if(e.key==='Escape'){if($('#padM').classList.contains('on'))closePad();else if(sheetName)closeSheet();else if(FM)closeField();else setTool(null);return}
  if(typing||cur!=='doc')return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo()}});
 
+/* ================= version & updates ================= */
+$('#buildV').textContent=BUILD;
+async function checkUpdate(){try{const r=await fetch('./?u='+Date.now(),{cache:'no-store'});const t=await r.text();const m=t.match(/const BUILD='([^']+)'/);if(m&&m[1]!==BUILD)$('#updBar').hidden=false}catch(e){}}
+$('#updB').onclick=async()=>{saveDraft();try{const regs=await navigator.serviceWorker?.getRegistrations?.();for(const r of regs||[])await r.update()}catch(e){}setTimeout(()=>location.reload(),300)};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate()});setInterval(checkUpdate,5*60*1000);setTimeout(checkUpdate,4000);
 /* ================= start ================= */
 renderSig();
 if(MODE==='signer'){history.replaceState({v:'msg'},'');startSigner()}
