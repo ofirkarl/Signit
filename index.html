@@ -95,7 +95,7 @@ button,label[for]{cursor:pointer}
 .f img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 .f.sig:not(.filled):not(.other)::after,.f.ini:not(.filled):not(.other)::after{content:"חתמו כאן";position:absolute;inset-inline-start:100%;top:50%;transform:translateY(-50%);margin-inline-start:4px;background:var(--tab);color:#fff;font-size:11px;font-weight:700;padding:2px 8px 2px 13px;clip-path:polygon(9px 0,100% 0,100% 100%,9px 100%,0 50%);white-space:nowrap;pointer-events:none}
 .f.ini:not(.filled):not(.other)::after{content:"ר״ת"}
-#fzrz{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--tab);border:3px solid #fff;box-shadow:0 1px 4px #0004;touch-action:none;cursor:nwse-resize;z-index:2}
+#fzrz{position:absolute;width:18px;height:18px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--tab);border:2px solid #fff;box-shadow:0 1px 4px #0004;touch-action:none;cursor:nwse-resize;z-index:2}
 #fab{position:fixed;left:16px;bottom:calc(var(--dbh,140px) + 14px);z-index:31;width:56px;height:56px;border-radius:18px;border:0;background:var(--acc);color:var(--ink);font-size:30px;line-height:1;box-shadow:0 4px 14px #0003}
 #dbar{position:fixed;inset:auto 0 0 0;z-index:30;background:var(--card);border-top:1px solid var(--line);padding:8px 12px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -6px 20px #0000000f}
 #dbar>div{max-width:720px;margin:0 auto}
@@ -529,6 +529,7 @@ function findBlanks(p){const P=p.scan;if(!P)return[];const{b,W,H,s:sc}=P,minL=Ma
  const out=[];for(const g of groups){const th=g.yb-g.y+1;if(th>4)continue;const ix0=g.x0+2,ix1=g.x1-2;
   const above=inkFrac(P,ix0,ix1,g.y-Math.round(7*sc),g.y-Math.round(1.5*sc)),below=inkFrac(P,ix0,ix1,g.yb+2,g.yb+Math.round(4*sc));
   const dotted=g.dens<.85;if(above>(dotted?.05:.1)||below>(dotted?.05:.12))continue;
+  {let cols=0,tot=0;const y0=Math.max(0,g.y-Math.round(9*sc)),y1=g.y-Math.round(1.2*sc);for(let x=ix0;x<ix1;x+=1){tot++;for(let y=y0;y<y1;y++)if(b[y*W+x]){cols++;break}}if(tot&&cols/tot>.12)continue}
   let col=0,tot=0;for(let x=g.x0;x<=g.x1;x++){const v=b[g.y*W+x];if(v){tot++;if(v===2)col++}}if(tot&&col/tot>.5)continue;
   out.push({x:g.x0/sc,w:(g.x1-g.x0+1)/sc,ly:g.y/sc,dotted})}
  return out}
@@ -561,7 +562,7 @@ function lineLabel(p,bl,fh,blanks){const L=lineInfo(p,bl,fh,blanks);const R=bl.x
 const nearText=(p,bl,fh)=>(p.items||[]).some(it=>it.s.trim()&&((it.base>=bl.ly-fh*1.6&&it.base<=bl.ly+fh*.6&&it.x<bl.x+bl.w+200&&it.x+it.w>bl.x-200)||(it.base>bl.ly&&it.base<bl.ly+fh*2.2&&it.x<bl.x+bl.w&&it.x+it.w>bl.x)));
 const fontNear=(p,y)=>{let best=null,bd=1e9;for(const it of p.items||[]){if(!it.s.trim())continue;const d=Math.abs(it.base-y);if(d<bd){bd=d;best=it}}return best&&bd<40?clamp(best.h,6,30):11};
 /* the line segment under a point (for long-press and the + tool) */
-function snapLine(p,x,y){const fh=fontNear(p,y);const runs=darkRuns(p,0,p.vp.width,y-fh*.9,y+fh*.9,.6).filter(r=>r.w>=Math.max(8,fh*1.3)&&x>=r.x-8&&x<=r.x+r.w+8);
+function snapLine(p,x,y){const fh=fontNear(p,y);const runs=darkRuns(p,0,p.vp.width,y-fh*1.2,y+fh*1.2,.6).filter(r=>r.w>=Math.max(8,fh*1.1)&&x>=r.x-12&&x<=r.x+r.w+12);
  if(!runs.length)return null;runs.sort((a,b)=>Math.abs(a.y-y)-Math.abs(b.y-y));let r=runs[0];for(const o of runs)if(Math.abs(o.x-r.x)<2&&Math.abs(o.w-r.w)<3&&o.y<r.y)r=o;return{x:r.x,w:r.w,ly:r.y,fh}}
 function refineLines(p){if(!S.ready||p.refined||!p.drawn)return;p.refined=true;const c=p.canvas,sc=c.width/p.vp.width;let ctx;try{ctx=c.getContext('2d',{willReadFrequently:true})}catch(e){return}let ch=0;
  const used=new Set();
@@ -651,14 +652,21 @@ async function detectPage(p,addFields){
 
 /* ================= fields on the page ================= */
 const byId=id=>S.fields.find(f=>f.id===id);
-const fs=f=>Math.max(5,Math.min(f.h*.68,14)*(f.sz||1));
+const fsBase=f=>Math.max(5,Math.min(f.h*.68,14));
+const fs=f=>fsBase(f)*(f.sz||1);
 const TEXTY=f=>!['check','sig','ini'].includes(f.type);
 const mctx=document.createElement('canvas').getContext('2d');
 const textW=(t,size)=>{mctx.font=`500 ${size}px Heebo, Arial, sans-serif`;return mctx.measureText(t).width};
+/* free space beyond the line in the direction the field grows (stops at the next word) */
+function freeSpace(f,dir){const p=S.pages[f.page-1],P=p&&p.scan;if(!P)return 400;const sc=P.s,ly=f.ly!=null?f.ly:f.y+f.h,fh=f.fh||11;
+ const y0=Math.max(0,Math.floor((ly-fh*1.05)*sc)),y1=Math.max(y0+1,Math.floor((ly-1)*sc));const start=dir<0?(f.l0??f.x):(f.r0??f.x+f.w);
+ for(let d=1;d<400*sc;d++){const x=Math.round(start*sc)+dir*d;if(x<0||x>=P.W)return d/sc-1;for(let y=y0;y<y1;y++)if(P.b[y*P.W+x])return Math.max(0,d/sc-2.5)}return 400}
 function fit(f){if(!TEXTY(f))return false;const p=S.pages[f.page-1];if(!p)return false;if(f.w0==null)f.w0=f.w;
- const need=textW(String(f.value||''),fs(f))+6,nw=Math.min(Math.max(f.w0,need),p.vp.width-8);if(Math.abs(nw-f.w)<.5)return false;
- const an=f.anchor||(f.src==='manual'?'c':(S.rtl>=0?'r':'l'));
- if(f.r0==null){f.r0=f.x+f.w;f.l0=f.x;f.c0=f.x+f.w/2}
+ const an=f.anchor||(f.src==='manual'?'c':(S.rtl>=0?'r':'l'));if(f.r0==null){f.r0=f.x+f.w;f.l0=f.x;f.c0=f.x+f.w/2}
+ const v=String(f.value||''),u=f.usz||1,base=fsBase(f)*u;let need=textW(v,base)+6;
+ const free=an==='r'?freeSpace(f,-1):an==='l'?freeSpace(f,1):2*Math.min(freeSpace(f,-1),freeSpace(f,1));
+ let sz=u;if(need>f.w0+free){sz=u*Math.max(.7,(f.w0+free)/need);need=textW(v,fsBase(f)*sz)+6}
+ const oldSz=f.sz||1;f.sz=sz;const nw=Math.min(Math.max(f.w0,need),p.vp.width-8);if(Math.abs(nw-f.w)<.5&&Math.abs(oldSz-sz)<.01)return false;
  let x=an==='r'?f.r0-nw:an==='l'?f.l0:f.c0-nw/2;f.w=nw;f.x=clamp(x,4,p.vp.width-nw-4);return true}
 function hasVal(f){if(f.type==='sig')return!!(f.value&&S.sig);if(f.type==='ini')return!!(f.value&&S.ini);if(f.type==='check')return!!f.value;return String(f.value||'').trim()!==''}
 const inScope=f=>MODE==='signer'||!f.other;
@@ -697,7 +705,8 @@ function sizeFor(type,fh){const k=fh/12,b=SZ[type]||[90,20];return[b[0]*k,b[1]*k
 function addFieldAt(pg,cx,cy,type){const p=S.pages[pg.dataset.n-1],r=pg.getBoundingClientRect(),k=r.width/p.vp.width,px=(cx-r.left)/k,py=(cy-r.top)/k;
  const sn=['check','sig','ini'].includes(type)?null:snapLine(p,px,py),fh=sn?sn.fh:fontNear(p,py);let rect;
  if(sn){const h=clamp(fh*1.5,9,30);rect={x:sn.x,y:sn.ly-h,w:sn.w,h}}
- else{const[w,h]=sizeFor(type,fh);rect={x:px-w/2,y:['check','sig','ini'].includes(type)?py-h/2:py-h+fh*.3,w,h}}
+ else{const[w,h]=sizeFor(type,fh);let bot=py+fh*.3;if(!['check','sig','ini'].includes(type)){const its=(p.items||[]).filter(it=>it.s.trim()&&Math.abs(it.base-py)<fh*1.2).sort((a,b)=>Math.abs(a.base-py)-Math.abs(b.base-py));if(its.length)bot=its[0].base+1}
+  rect={x:px-w/2,y:['check','sig','ini'].includes(type)?py-h/2:bot-h,w,h}}
  rect.x=clamp(rect.x,0,p.vp.width-rect.w);rect.y=clamp(rect.y,0,p.vp.height-rect.h);
  snap();const f=mk(p.n,rect,type,TYPES[type].l,'manual');f.fh=fh;if(sn){f.ly=sn.ly;f.w0=sn.w}if(DATEY(f.type))f.value=defVal(f.type);
  if((f.type==='sig'||f.type==='ini')&&S[f.type])f.value=true;
@@ -725,7 +734,7 @@ $$('[data-tool]').forEach(b=>b.onclick=()=>{closeSheet();setTool(b.dataset.tool)
 /* ================= field mode: zoomed view + previous/next ================= */
 let FM=null;
 function openField(f){if(!f)return;if(sheetName){hideSheet();swapLayer('field')}else if(!FM)pushLayer('field');showField(f)}
-function showField(f){FM=f.id;$('#fpanel').hidden=false;$('#zoomC').hidden=true;$('#dbar').hidden=true;$('#fab').hidden=true;
+function showField(f){if(S.tool)setTool(null);FM=f.id;$('#fpanel').hidden=false;$('#zoomC').hidden=true;$('#dbar').hidden=true;$('#fab').hidden=true;
  $$('#pages .f.cur').forEach(e=>e.classList.remove('cur'));const fe=$(`#pages .f[data-id="${f.id}"]`);if(fe){fe.classList.add('cur');scrollToField(fe)}renderFP()}
 function hideField(){FM=null;$('#fpanel').hidden=true;$('#zoomC').hidden=false;$('#dbar').hidden=false;$('#fab').hidden=MODE!=='owner';$$('#pages .f.cur').forEach(e=>e.classList.remove('cur'));updateBar()}
 function closeField(){if(!FM)return;if(layers[layers.length-1]==='field')history.back();else hideField()}
@@ -734,8 +743,7 @@ function scrollToField(fe){const rr=fe.getBoundingClientRect();if(rr.left<0||rr.
 function stepField(d){const all=sorted(),pos=all.findIndex(x=>x.id===FM),L=all.filter(inScope);
  const c=d>0?L.find(x=>all.indexOf(x)>pos):[...L].reverse().find(x=>all.indexOf(x)<pos);
  if(c){showField(c);return}
- if(d>0){const left=L.filter(x=>!hasVal(x));if(left.length){showField(left[0]);toast(`נשארו ${left.length} שדות ריקים`);return}
-  if(MODE==='signer'){closeField();submitSigned()}else{hideField();swapLayer('sheet');showSheet('finish')}}}
+ if(d>0){if(MODE==='signer'){closeField();submitSigned()}else{hideField();swapLayer('sheet');showSheet('finish')}}}
 $('#fpPrev').onclick=()=>stepField(-1);$('#fpNext').onclick=()=>stepField(1);$('#fpClose').onclick=closeField;
 function renderFP(){const f=byId(FM);if(!f)return;const all=sorted().filter(inScope),i=all.findIndex(x=>x.id===f.id);
  $('#fpLbl').textContent=lbl(f);$('#fpPos').textContent=i>=0?`${i+1} מתוך ${all.length}`:'של החותם';
@@ -750,10 +758,10 @@ function placeBox(f){if(!Z||Z.id!==f.id)return;$('#fzbox').style.setProperty('--
 function moved(f){if(!f._fitting){f.r0=f.x+f.w;f.l0=f.x;f.c0=f.x+f.w/2}const p=S.pages[f.page-1],e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.cssText=posCss(f,p);placeBox(f);saveDraft();clearTimeout(zT);zT=setTimeout(()=>{if(FM===f.id)renderZoom(f)},700)}
 function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];
  if(dz&&!TEXTY(f)){const k=1+dz*1.5,cx=f.x+f.w/2,cy=f.y+f.h/2;f.w=clamp(f.w*k,10,p.vp.width-8);f.h=clamp(f.h*k,8,p.vp.height-8);f.x=clamp(cx-f.w/2,0,p.vp.width-f.w);f.y=clamp(cy-f.h/2,0,p.vp.height-f.h);dz=0}
- if(dz){f.sz=clamp(Math.round(((f.sz||1)+dz)*10)/10,.5,2.5);fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e){e.style.setProperty('--fs',fs(f));e.style.setProperty('--bo',bo(f))}}
+ if(dz){f.usz=clamp(Math.round(((f.usz||1)+dz)*10)/10,.5,2.5);f.sz=f.usz;fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e){e.style.setProperty('--fs',fs(f));e.style.setProperty('--bo',bo(f))}}
  f.x=clamp(f.x+dx,0,p.vp.width-f.w);f.y=clamp(f.y+dy,0,p.vp.height-f.h);if(dx||dy)delete f._fitting;moved(f);delete f._fitting}
 async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W)return;const dpr=Math.min(window.devicePixelRatio||1,3);
- let rw=Math.min(Math.max(f.w*1.84,230),p.vp.width),rh=rw*H/W;if(rh<f.h*2.76){rh=f.h*2.76;rw=rh*W/H}
+ let rw=Math.min(Math.max(f.w*2.4,300),p.vp.width),rh=rw*H/W;if(rh<f.h*2.76){rh=f.h*2.76;rw=rh*W/H}
  const rx=clamp(f.x+f.w/2-rw/2,0,Math.max(0,p.vp.width-rw)),ry=clamp(f.y+f.h/2-rh/2,0,Math.max(0,p.vp.height-rh)),s=W*dpr/rw,k=W/rw;
  Z={rx,ry,k,id:f.id};placeBox(f);zoomVal(f);zoomOthers(f);
  const c=document.createElement('canvas');c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
@@ -761,7 +769,7 @@ async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.cli
  try{await my.promise}catch(e){return}if(my!==zTask||FM!==f.id)return;c.id='fzc';$('#fzc').replaceWith(c)}
 function zoomVal(f){const b=$('#fzbox');b.innerHTML='';if((f.type==='sig'||f.type==='ini')){if(f.value&&S[f.type]){const i=new Image();i.src=S[f.type];i.alt='';b.appendChild(i)}else{const s=document.createElement('span');s.className='ph';s.textContent=f.type==='sig'?'חתימה':'ר״ת';b.appendChild(s)}return}
  if(f.type==='check'){b.style.justifyContent='center';b.textContent=f.value?'✓':'';return}
- const s=document.createElement('span');if(String(f.value||'')){s.textContent=f.value;s.dir='auto'}else{s.className='ph';s.textContent=lbl(f)}b.appendChild(s)}
+ if(String(f.value||'')){const s=document.createElement('span');s.textContent=f.value;s.dir='auto';b.appendChild(s)}}
 const QT=[['text','טקסט'],['date','תאריך'],['check','✓'],['sig','חתימה'],['ini','ר״ת']];
 function renderEdit(f){const E=$('#fpEdit'),own_=MODE==='owner',nm=f.type==='sig'?'חתימה':'ראשי תיבות';let h='';
  if(own_&&f.src==='manual'&&!f.other)h+=`<div class="qtype">${QT.map(([k,l])=>`<button class="chip${f.type===k?' on':''}" data-qt="${k}">${l}</button>`).join('')}</div>`;
@@ -777,7 +785,7 @@ function renderEdit(f){const E=$('#fpEdit'),own_=MODE==='owner',nm=f.type==='sig
  if(own_&&!f.other)h+=`<div class="adj" aria-label="מיקום וגודל"><span>הזזה</span><button data-nd="0,-1" aria-label="למעלה">↑</button><button data-nd="0,1" aria-label="למטה">↓</button><button data-nd="1,0" aria-label="ימינה">→</button><button data-nd="-1,0" aria-label="שמאלה">←</button><i class="sep"></i>${TEXTY(f)?'<button data-nz="-0.1" aria-label="טקסט קטן יותר">A−</button><button data-nz="0.1" aria-label="טקסט גדול יותר">A+</button>':`<span>גודל</span><button data-nz="-0.1" aria-label="${nm} קטנה יותר">−</button><button data-nz="0.1" aria-label="${nm} גדולה יותר">＋</button>`}</div>`;
  if(own_)h+=`<div class="chips"><select class="chip" id="fpType" aria-label="סוג השדה">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===f.type?' selected':''}>${v.l}</option>`).join('')}</select><button class="chip${f.other?' on':''}" id="fpWho">ממלא: ${f.other?'החותם':'אני'}</button><button class="chip" id="fpDel">ביטול שדה</button><button class="chip" id="fpAdd">＋ שדה נוסף</button></div>`;
  E.innerHTML=h;const inp=$('#fpI');if(inp){inp.value=f.value||'';if(!('ontouchstart' in window))setTimeout(()=>inp.focus({preventScroll:true}),50)}}
-$('#fpEdit').addEventListener('input',e=>{if(e.target.id!=='fpI')return;const f=byId(FM);if(!f)return;if(!e.target.dataset.snap){snap();e.target.dataset.snap=1}f.value=e.target.value;f._fitting=1;if(fit(f))moved(f);delete f._fitting;zoomVal(f);refreshField(f);saveDraft()});
+$('#fpEdit').addEventListener('input',e=>{if(e.target.id!=='fpI')return;const f=byId(FM);if(!f)return;if(!e.target.dataset.snap){snap();e.target.dataset.snap=1}f.value=e.target.value;f._fitting=1;if(fit(f)){moved(f);const pe=$(`#pages .f[data-id="${f.id}"]`);if(pe){pe.style.setProperty('--fs',fs(f));pe.style.setProperty('--bo',bo(f))}}delete f._fitting;zoomVal(f);refreshField(f);saveDraft()});
 $('#fpEdit').addEventListener('keydown',e=>{if(e.target.id==='fpI'&&e.key==='Enter'){e.preventDefault();stepField(1)}});
 $('#fpEdit').addEventListener('change',e=>{const f=byId(FM);if(!f||e.target.id!=='fpType')return;snap();f.type=e.target.value;f.value=f.type==='check'?false:(f.type==='sig'||f.type==='ini')?(!f.other&&!!S[f.type]):DATEY(f.type)&&!f.other?defVal(f.type):(typeof f.value==='string'?f.value:'');renderFields();showField(f);saveDraft()});
 $('#fpEdit').addEventListener('click',e=>{const f=byId(FM);if(!f)return;const t=e.target.closest('button');if(!t)return;
@@ -883,7 +891,7 @@ const mineBuilt=()=>buildPdf(f=>!f.other);
 
 /* finish sheet */
 function renderFinish(){const left=S.fields.filter(f=>!f.other&&!hasVal(f)).length,theirs=S.fields.filter(f=>f.other).length;
- $('#fnLeft').textContent=left?`שימו לב: ${left} שדות שלך עדיין ריקים.`:'כל השדות שלך מולאו.';
+ $('#fnLeft').innerHTML=left?`שימו לב: ${left} שדות שלך עדיין ריקים. <button class="chip" id="fnGoEmpty">מעבר לשדות הריקים</button>`:'כל השדות שלך מולאו.';const ge=$('#fnGoEmpty');if(ge)ge.onclick=()=>{const f=sorted().find(x=>!x.other&&!hasVal(x));if(f)openField(f)};
  $('#fnMenu').hidden=false;$('#sdForm').hidden=true;$('#sdDone').hidden=true;
  $('#fnDrive').disabled=!S.srv;$('#fnDriveS').textContent=S.srv?'בתיקיית Signit - מסמכים':'צריך לחבר את שרת המסמכים בהגדרות';
  $('#fnSend').disabled=!S.srv||!theirs;$('#fnSendS').textContent=!S.srv?'צריך לחבר את שרת המסמכים בהגדרות':theirs?`${theirs} שדות יחכו לחותם`:'קודם סמנו ב"שדות" אילו שדות ימלא הצד השני'}
@@ -907,7 +915,7 @@ async function startSigner(){message('טוען את המסמך…','');$('#msgH'
   S.note=d.note||'';await openBytes(fromB64(d.pdf),d.name,{fields:(d.fields||[]).map(f=>({...f,id:uid(),other:false,src:'sent',value:f.type==='check'?false:f.type==='date'?today():''}))});
   toast('ממלאים את השדות המסומנים וחותמים. "מילוי שדות" עובר עליהם אחד אחד.')}
  catch(e){const m=errMsg(e);message('לא הצלחתי לפתוח את המסמך',m==='הקישור לא תקין'?'הקישור לא תקין או שפג תוקפו. בקשו מהשולח קישור חדש.':m,[['נסו שוב',()=>location.reload(),true]])}}
-function submitSigned(){const f=sorted().find(x=>!hasVal(x));if(f){toast('יש עוד שדות למלא');openField(f);return}
+function submitSigned(){const f=sorted().find(x=>!hasVal(x));if(f){toast('יש עוד שדות למלא לפני השליחה');if(FM!==f.id)openField(f);return}
  busy($('#nextB'),async()=>{const b=await buildPdf();const signer=(S.fields.find(f=>f.type==='name'&&f.value)||{}).value||'';await api('submitSigned',Q.get('d'),Q.get('t'),{pdf:toB64(b),signer});
   message('המסמך נחתם ונשלח. תודה!','עותק חתום נשמר אצל השולח. אפשר לשמור עותק גם לעצמך.',[['שמירת עותק',()=>saveToDevice(b,outName()),true],['שיתוף',()=>shareFile(b,outName())]])})}
 
