@@ -81,10 +81,15 @@ button,label[for]{cursor:pointer}
 .ov{position:absolute;inset:0}.ov.placing{cursor:crosshair}
 .f{position:absolute;border:1.5px solid #e0b400;background:rgba(255,224,74,.14);border-radius:3px;color:#14206e;display:flex;align-items:flex-end;overflow:visible;cursor:pointer}
 .f.check,.f.sig,.f.ini{align-items:center}
+.f.tx{border:0;border-radius:2px 2px 0 0;background:rgba(255,224,74,.22);box-shadow:inset 0 -2px 0 #e0b400}
+.f.tx.filled{border:0;background:transparent;box-shadow:none}
+.f.tx.filled:hover{box-shadow:inset 0 -2px 0 #e0b40088}
+.f.tx.other{border:0;background:rgba(124,133,151,.1);box-shadow:inset 0 -2px 0 #7c8597}
+.f.tx.cur{outline:0;background:rgba(255,106,43,.10);box-shadow:inset 0 -3px 0 var(--tab)}
 .f.filled{border:1px dashed #c9a40088;background:transparent}
 .f.other{border:1.5px dashed #7c8597;background:rgba(124,133,151,.07)}
 .f.cur{outline:3px solid var(--tab);outline-offset:2px;z-index:3}
-.fv{width:100%;text-align:center;padding:0 calc(1px * var(--k)) calc(2px * var(--k));font-size:calc(var(--fs) * var(--k) * 1px);font-weight:500;white-space:nowrap;overflow:hidden;line-height:1;pointer-events:none}
+.fv{width:100%;text-align:center;padding:0 calc(1px * var(--k));transform:translateY(calc(var(--bo,0) * var(--k) * 1px));font-size:calc(var(--fs) * var(--k) * 1px);font-weight:500;white-space:nowrap;overflow:hidden;line-height:1;pointer-events:none}
 .f.check .fv{text-align:center;font-weight:700}
 .f.other .fv{color:#5d6170;font-size:max(9px,calc(var(--fs) * var(--k) * .8px))}
 .f img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
@@ -114,7 +119,8 @@ button,label[for]{cursor:pointer}
 #fzc{position:absolute;inset:0;width:100%;height:100%}
 #fzbox{position:absolute;border:2.5px solid var(--tab);border-radius:4px;background:rgba(255,224,74,.14);display:flex;align-items:flex-end;justify-content:center;color:#14206e;font-weight:500;overflow:hidden;white-space:nowrap;padding:0 3px}
 #fzbox img{height:100%;width:100%;object-fit:contain}
-#fzbox>span{line-height:1;padding-bottom:calc(var(--zk,1) * 2px);white-space:nowrap}
+#fzbox>span{line-height:1;white-space:nowrap;transform:translateY(calc(var(--bo,0) * var(--zk,1) * 1px))}
+#fzbox.tx{border:0;border-radius:3px 3px 0 0;background:rgba(255,106,43,.10);box-shadow:inset 0 -3px 0 var(--tab)}
 #fzbox .ph{color:#9a8a40;font-weight:400}
 .inrow{display:flex;gap:8px;align-items:stretch}.inrow input{flex:1}
 .clr{flex:none;min-width:84px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);font-weight:700}
@@ -487,7 +493,7 @@ async function openBytes(bytes,name,preset){
  if(!pdfOk){toast('ספריות ה־PDF לא נטענו. בדקו חיבור ופתחו שוב.');return}
  let pdf;try{pdf=await pdfjsLib.getDocument({data:bytes.slice(),cMapUrl:PDFJS_DATA+'cmaps/',cMapPacked:true,standardFontDataUrl:PDFJS_DATA+'standard_fonts/'}).promise}catch(e){toast(e&&e.name==='PasswordException'?'הקובץ מוגן בסיסמה':'לא הצלחתי לפתוח את הקובץ');return}
  if(FM)hideField();
- Object.assign(S,{rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
+ Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
  $('#docName').textContent=name;S.zoom=2;setZoom(1);$('#sum').innerHTML='';$('#chat').hidden=true;$('#msgs').innerHTML='';$('#sumStatus').textContent='';
  $('#noteV').hidden=!S.note;$('#noteV').textContent=S.note;
  if(MODE==='owner'){if(cur!=='doc')go('doc')}else show('doc');
@@ -497,18 +503,27 @@ async function openBytes(bytes,name,preset){
  const txt=[];for(const p of S.pages){txt.push(`--- עמוד ${p.n} ---\n`+await detectPage(p,!preset))}S.text=txt.join('\n');
  if(preset){S.fields=preset.fields||[];S.summary=preset.summary||null;if(S.summary)renderSummary(S.summary)}
  else{const n=autofill(true),sg=autoSign();S.fields.forEach(fit);toast(`זוהו ${S.fields.length} שדות`+(n?`, ${n} מולאו מהפרטים שלך`:'')+(sg?`, החתימה שלך הוצבה ב־${sg}`:''))}
- renderFields();saveDraft();sizeBar();
+ S.ready=true;renderFields();S.pages.forEach(refineLines);saveDraft();sizeBar();
 }
 
 /* ================= page rendering ================= */
 const zoomNow=()=>(window.visualViewport&&visualViewport.scale)||1;
+function refineLines(p){if(!S.ready||p.refined||!p.canvas||!p.canvas.width)return;p.refined=true;const c=p.canvas,sc=c.width/p.vp.width;let ctx;try{ctx=c.getContext('2d',{willReadFrequently:true})}catch(e){return}let ch=0;
+ for(const f of S.fields){if(f.page!==p.n||f.src!=='auto'||!TEXTY(f)||f.ly!=null)continue;
+  const L=f.l0!=null?f.l0:f.x,R=f.r0!=null?f.r0:f.x+f.w,x0=Math.max(0,Math.floor((L+2)*sc)),x1=Math.min(c.width,Math.ceil((R-2)*sc)),W=x1-x0;if(W<6)continue;
+  const yb=f.base!=null?f.base:f.y+f.h-2,y0=Math.max(0,Math.floor((yb-5)*sc)),y1=Math.min(c.height,Math.ceil((yb+9)*sc));if(y1<=y0)continue;
+  let d;try{d=ctx.getImageData(x0,y0,W,y1-y0).data}catch(e){return}let best=-1,bc=0;
+  for(let r=0;r<y1-y0;r++){let n=0;for(let i=0;i<W;i++){const k=(r*W+i)*4;if(d[k+3]>100&&d[k]+d[k+1]+d[k+2]<400)n++}if(n>bc){bc=n;best=r}}
+  if(best>=0&&bc>W*.3){let last=best;while(last+1<y1-y0){let n=0;for(let i=0;i<W;i++){const k=((last+1)*W+i)*4;if(d[k+3]>100&&d[k]+d[k+1]+d[k+2]<400)n++}if(n>W*.3)last++;else break}
+   f.ly=(y0+best)/sc;f.y=f.ly-f.h;ch++}}
+ if(ch){renderFields();saveDraft()}}
 async function renderPage(p,force){const W=p.wrap.clientWidth;if(!W)return;p.wrap.style.setProperty('--k',W/p.vp.width);
  let px=W*Math.min(window.devicePixelRatio||1,3);const H=px*p.vp.height/p.vp.width,MAX=14e6;if(px*H>MAX)px*=Math.sqrt(MAX/(px*H));
  if(!force&&p.cw&&Math.abs(p.cw-px)/px<.15)return;p.cw=px;
  const vp=p.page.getViewport({scale:px/p.vp.width});if(p.task)try{p.task.cancel()}catch(e){}
  const c=document.createElement('canvas');c.width=Math.floor(vp.width);c.height=Math.floor(vp.height);
  p.task=p.page.render({canvasContext:c.getContext('2d'),viewport:vp});try{await p.task.promise}catch(e){return}
- p.wrap.replaceChild(c,p.canvas);p.canvas=c}
+ p.wrap.replaceChild(c,p.canvas);p.canvas=c;refineLines(p)}
 let rT;const rerender=()=>{clearTimeout(rT);rT=setTimeout(()=>{const vh=innerHeight;S.pages.forEach(p=>{const r=p.wrap.getBoundingClientRect();if(r.bottom>-vh&&r.top<vh*2)renderPage(p)})},250)};
 const pagesRO=new ResizeObserver(()=>{S.pages.forEach(p=>p.wrap.style.setProperty('--k',p.wrap.clientWidth/p.vp.width));rerender()});pagesRO.observe($('#pages'));
 if(window.visualViewport)visualViewport.addEventListener('resize',rerender);addEventListener('scroll',()=>{if(cur==='doc'&&zoomNow()>1.05)rerender()},{passive:true});
@@ -564,7 +579,7 @@ async function detectPage(p,addFields){
     const t=classify(label||after),h=t==='sig'?32:t==='ini'?28:clamp(it.h*1.5,12,24);
     const r={x,y:it.base-h+2,w:Math.max(w,t==='sig'?110:w),h};
     if(formRects.some(f=>overlap(f,r)>.3))continue;
-    out.push(mk(p.n,r,t,label||after,'auto'))}}
+    const nf=mk(p.n,r,t,label||after,'auto');nf.base=it.base;out.push(nf)}}
   for(const it of items){const s=it.s.trim();if(s.length>30||!/חתימ|signature/i.test(s)||BL1.test(s))continue;
    if(out.some(f=>f.type==='sig'&&Math.abs((f.y+f.h)-it.base)<45&&f.x<it.x+it.w+170&&f.x+f.w>it.x-170))continue;
    const r=/:\s*$/.test(s)||/^:/.test(s)?{x:it.dir==='rtl'?it.x-150:it.x+it.w+8,y:it.base-30,w:140,h:32}:{x:it.x+it.w/2-70,y:it.y-38,w:140,h:32};
@@ -587,10 +602,11 @@ function hasVal(f){if(f.type==='sig')return!!(f.value&&S.sig);if(f.type==='ini')
 const inScope=f=>MODE==='signer'||!f.other;
 const sorted=()=>[...S.fields].sort((a,b)=>a.page-b.page||a.y-b.y||b.x-a.x);
 const lbl=f=>f.label||TYPES[f.type].l;
-function posCss(f,p){return`left:${f.x/p.vp.width*100}%;top:${f.y/p.vp.height*100}%;width:${f.w/p.vp.width*100}%;height:${f.h/p.vp.height*100}%;--fs:${fs(f)}`}
+const BASE_GAP=1;const bo=f=>.1455*fs(f)-BASE_GAP;
+function posCss(f,p){return`left:${f.x/p.vp.width*100}%;top:${f.y/p.vp.height*100}%;width:${f.w/p.vp.width*100}%;height:${f.h/p.vp.height*100}%;--fs:${fs(f)};--bo:${bo(f)}`}
 function valHTML(f){if((f.type==='sig'||f.type==='ini')&&f.value&&S[f.type])return`<img alt="" src="${esc(S[f.type])}">`;if(f.type==='check')return`<span class="fv">${f.value?'✓':''}</span>`;
  if(f.other&&MODE==='owner')return`<span class="fv">${f.type==='sig'?'חתימת החותם':'החותם'}</span>`;return`<span class="fv" dir="auto">${esc(f.type==='sig'||f.type==='ini'?'':f.value)}</span>`}
-function fieldHTML(f,p){const cls=['f',f.type,hasVal(f)?'filled':'',f.other&&MODE==='owner'?'other':'',FM===f.id?'cur':''].join(' ');
+function fieldHTML(f,p){const cls=['f',f.type,TEXTY(f)?'tx':'',hasVal(f)?'filled':'',f.other&&MODE==='owner'?'other':'',FM===f.id?'cur':''].join(' ');
  return`<div class="${cls}" data-id="${f.id}" style="${posCss(f,p)}" role="button" tabindex="0" aria-label="${esc(lbl(f))}">${valHTML(f)}</div>`}
 function renderFields(){for(const p of S.pages)p.ov.innerHTML=S.fields.filter(f=>f.page===p.n).map(f=>fieldHTML(f,p)).join('');updateBar();if(sheetName==='fields')renderList()}
 function refreshField(f){const e=$(`#pages .f[data-id="${f.id}"]`);if(!e)return;e.classList.toggle('filled',hasVal(f));const v=e.querySelector('.fv,img');const tmp=document.createElement('div');tmp.innerHTML=valHTML(f);if(v)v.replaceWith(tmp.firstChild);updateBar()}
@@ -656,11 +672,11 @@ function renderFP(){const f=byId(FM);if(!f)return;const all=sorted().filter(inSc
  $('#fpPrev').disabled=i<=0;const last=i===all.length-1;$('#fpNext').textContent=last?(MODE==='signer'?'סיום ושליחה':'סיום'):'הבא ←';
  renderEdit(f);renderZoom(f)}
 let zTask=null,Z=null,zT;
-function placeBox(f){if(!Z||Z.id!==f.id)return;$('#fzbox').style.setProperty('--zk',Z.k);const h=$('#fzrz');if(h){h.hidden=MODE!=='owner'||f.other;h.style.left=((f.x+f.w-Z.rx)*Z.k)+'px';h.style.top=((f.y+f.h-Z.ry)*Z.k)+'px'}$('#fzbox').style.cssText=`--zk:${Z.k};left:${(f.x-Z.rx)*Z.k}px;top:${(f.y-Z.ry)*Z.k}px;width:${f.w*Z.k}px;height:${f.h*Z.k}px;font-size:${fs(f)*Z.k}px`}
+function placeBox(f){if(!Z||Z.id!==f.id)return;$('#fzbox').style.setProperty('--zk',Z.k);const h=$('#fzrz');if(h){h.hidden=MODE!=='owner'||f.other;h.style.left=((f.x+f.w-Z.rx)*Z.k)+'px';h.style.top=((f.y+f.h-Z.ry)*Z.k)+'px'}$('#fzbox').className=TEXTY(f)?'tx':'';$('#fzbox').style.cssText=`--zk:${Z.k};--bo:${bo(f)};left:${(f.x-Z.rx)*Z.k}px;top:${(f.y-Z.ry)*Z.k}px;width:${f.w*Z.k}px;height:${f.h*Z.k}px;font-size:${fs(f)*Z.k}px`}
 function moved(f){if(!f._fitting){f.r0=f.x+f.w;f.l0=f.x;f.c0=f.x+f.w/2}const p=S.pages[f.page-1],e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.cssText=posCss(f,p);placeBox(f);saveDraft();clearTimeout(zT);zT=setTimeout(()=>{if(FM===f.id)renderZoom(f)},700)}
 function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];
  if(dz&&!TEXTY(f)){const k=1+dz*1.5,cx=f.x+f.w/2,cy=f.y+f.h/2;f.w=clamp(f.w*k,10,p.vp.width-8);f.h=clamp(f.h*k,8,p.vp.height-8);f.x=clamp(cx-f.w/2,0,p.vp.width-f.w);f.y=clamp(cy-f.h/2,0,p.vp.height-f.h);dz=0}
- if(dz){f.sz=clamp(Math.round(((f.sz||1)+dz)*10)/10,.5,2.5);fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.setProperty('--fs',fs(f))}
+ if(dz){f.sz=clamp(Math.round(((f.sz||1)+dz)*10)/10,.5,2.5);fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e){e.style.setProperty('--fs',fs(f));e.style.setProperty('--bo',bo(f))}}
  f.x=clamp(f.x+dx,0,p.vp.width-f.w);f.y=clamp(f.y+dy,0,p.vp.height-f.h);if(dx||dy)delete f._fitting;moved(f);delete f._fitting}
 async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W)return;const dpr=Math.min(window.devicePixelRatio||1,3);
  let rw=Math.min(Math.max(f.w*1.84,230),p.vp.width),rh=rw*H/W;if(rh<f.h*2.76){rh=f.h*2.76;rw=rh*W/H}
@@ -770,7 +786,7 @@ function textPng(f){const K=5,c=document.createElement('canvas');c.width=Math.ce
  if(f.type==='check'){x.strokeStyle='#14206e';x.lineWidth=c.height*.14;x.lineCap='round';x.beginPath();x.moveTo(c.width*.2,c.height*.55);x.lineTo(c.width*.42,c.height*.78);x.lineTo(c.width*.82,c.height*.22);x.stroke();return c.toDataURL()}
  const t=String(f.value);let size=fs(f)*K;x.textBaseline='alphabetic';x.direction=HEB.test(t)?'rtl':'ltr';x.textAlign='center';
  x.font=`500 ${size}px Heebo, Arial, sans-serif`;const room=c.width-2*K,mw=x.measureText(t).width;if(mw>room){size*=room/mw;x.font=`500 ${size}px Heebo, Arial, sans-serif`}
- x.fillText(t,c.width/2,c.height-K*2-size*.2);return c.toDataURL()}
+ x.fillText(t,c.width/2,c.height-K*BASE_GAP);return c.toDataURL()}
 async function buildPdf(which){try{await document.fonts.load('500 20px Heebo','אב')}catch(e){}
  const doc=await PDFLib.PDFDocument.load(S.bytes,{ignoreEncryption:true});
  try{const form=doc.getForm();for(const fl of form.getFields()){try{form.removeField(fl)}catch(e){}}}catch(e){}
