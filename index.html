@@ -108,6 +108,7 @@ button,label[for]{cursor:pointer}
 #fpanel.min .fzoom,#fpanel.min .fedit{display:none}
 #fpanel.min .fnav{margin-top:6px}
 #fpMin{font-size:18px}
+@media(max-height:600px){#fpanel .adj,#fpanel .fedit .chips,#fpanel .qtype{display:none}#fpanel{padding-top:6px}.fhead .ib{width:38px;height:38px}}
 .lp{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:3px solid var(--tab);pointer-events:none;animation:lp .4s linear forwards;z-index:5}
 @keyframes lp{from{transform:scale(.3);opacity:.3}to{transform:scale(1);opacity:1}}
 .qtype{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.qtype .chip{flex:1 1 auto}
@@ -115,8 +116,9 @@ button,label[for]{cursor:pointer}
 .fhead{display:flex;align-items:center;gap:8px}
 .fhead b{flex:1;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fhead .pos{color:var(--mut);font-size:14px;white-space:nowrap}
-.fzoom{position:relative;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);margin:8px 0;height:clamp(110px,20vh,170px)}
-#fzc{position:absolute;inset:0;width:100%;height:100%}
+.fzoom{position:relative;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);margin:8px 0;height:var(--zh,150px)}
+.fzoom.loading #fzbox,.fzoom.loading #fzo,.fzoom.loading #fzrz{visibility:hidden}
+#fzc{position:absolute;top:0;left:0}
 #fzo{position:absolute;inset:0;pointer-events:none}
 #fzo .zf{position:absolute;display:flex;align-items:flex-end;justify-content:center;color:#14206e;font-weight:500;white-space:nowrap;overflow:visible}
 #fzo .zf.c{align-items:center}#fzo .zf img{width:100%;height:100%;object-fit:contain}
@@ -535,7 +537,7 @@ function findBlanks(p){const P=p.scan;if(!P)return[];const{b,W,H,s:sc}=P,minL=Ma
  return out}
 /* the words next to a line, to know what it asks for.
    pdf.js may scramble the order of Hebrew mixed with ____, so words are matched to the ink on the page by width */
-function lineInfo(p,bl,fh,blanks){const items=(p.items||[]).filter(it=>it.s.trim()&&it.base>=bl.ly-fh*1.6&&it.base<=bl.ly+fh*.6);if(!items.length)return null;
+function lineInfo(p,bl,fh,blanks){const items=(p.items||[]).filter(it=>it.s.trim()&&it.base>=bl.ly-Math.max(fh,it.h)*1.0&&it.base<=bl.ly+fh*.6);if(!items.length)return null;
  const base=items.map(i=>i.base).sort((a,b)=>a-b)[items.length>>1],key=Math.round(base);p.lines=p.lines||{};if(p.lines[key])return p.lines[key];
  const P=p.scan,sc=P.s,yA=Math.floor((base-fh*.85)*sc),yB=Math.ceil((base+fh*.25)*sc),xMin=Math.max(0,Math.floor((Math.min(...items.map(i=>i.x))-6)*sc)),xMax=Math.min(P.W,Math.ceil((Math.max(...items.map(i=>i.x+i.w))+6)*sc));
  const inBlank=x=>blanks.some(o=>Math.abs(o.ly-bl.ly)<fh*.8&&x>=o.x*sc-1&&x<=(o.x+o.w)*sc+1);const cl=[];let cur=null;const gap=fh*.9*sc;
@@ -760,13 +762,20 @@ function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];
  if(dz&&!TEXTY(f)){const k=1+dz*1.5,cx=f.x+f.w/2,cy=f.y+f.h/2;f.w=clamp(f.w*k,10,p.vp.width-8);f.h=clamp(f.h*k,8,p.vp.height-8);f.x=clamp(cx-f.w/2,0,p.vp.width-f.w);f.y=clamp(cy-f.h/2,0,p.vp.height-f.h);dz=0}
  if(dz){f.usz=clamp(Math.round(((f.usz||1)+dz)*10)/10,.5,2.5);f.sz=f.usz;fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e){e.style.setProperty('--fs',fs(f));e.style.setProperty('--bo',bo(f))}}
  f.x=clamp(f.x+dx,0,p.vp.width-f.w);f.y=clamp(f.y+dy,0,p.vp.height-f.h);if(dx||dy)delete f._fitting;moved(f);delete f._fitting}
-async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W)return;const dpr=Math.min(window.devicePixelRatio||1,3);
+let zSeq=0;
+async function renderZoom(f){if(!f)return;const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W||!H)return;const dpr=Math.min(window.devicePixelRatio||1,3);
  let rw=Math.min(Math.max(f.w*2.4,300),p.vp.width),rh=rw*H/W;if(rh<f.h*2.76){rh=f.h*2.76;rw=rh*W/H}
  const rx=clamp(f.x+f.w/2-rw/2,0,Math.max(0,p.vp.width-rw)),ry=clamp(f.y+f.h/2-rh/2,0,Math.max(0,p.vp.height-rh)),s=W*dpr/rw,k=W/rw;
- Z={rx,ry,k,id:f.id};placeBox(f);zoomVal(f);zoomOthers(f);
- const c=document.createElement('canvas');c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+ if(!Z||Z.id!==f.id)box.classList.add('loading');
+ const seq=++zSeq,c=document.createElement('canvas');c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
  if(zTask)try{zTask.cancel()}catch(e){}const my=zTask=p.page.render({canvasContext:ctx,viewport:p.page.getViewport({scale:s,offsetX:-rx*s,offsetY:-ry*s})});
- try{await my.promise}catch(e){return}if(my!==zTask||FM!==f.id)return;c.id='fzc';$('#fzc').replaceWith(c)}
+ try{await my.promise}catch(e){if(seq===zSeq)box.classList.remove('loading');return}
+ if(seq!==zSeq||FM!==f.id)return;
+ c.id='fzc';c.style.width=W+'px';c.style.height=H+'px';$('#fzc').replaceWith(c);
+ Z={rx,ry,k,id:f.id,W,H};placeBox(f);zoomVal(f);zoomOthers(f);box.classList.remove('loading')}
+/* if the zoom box ever changes size (keyboard, rotation), draw it again */
+new ResizeObserver(()=>{const box=$('#fzoom');if(FM&&Z&&(box.clientWidth!==Z.W||box.clientHeight!==Z.H))renderZoom(byId(FM))}).observe($('#fzoom'));
+document.documentElement.style.setProperty('--zh',Math.round(clamp((screen.height||800)*.19,120,170))+'px');
 function zoomVal(f){const b=$('#fzbox');b.innerHTML='';if((f.type==='sig'||f.type==='ini')){if(f.value&&S[f.type]){const i=new Image();i.src=S[f.type];i.alt='';b.appendChild(i)}else{const s=document.createElement('span');s.className='ph';s.textContent=f.type==='sig'?'חתימה':'ר״ת';b.appendChild(s)}return}
  if(f.type==='check'){b.style.justifyContent='center';b.textContent=f.value?'✓':'';return}
  if(String(f.value||'')){const s=document.createElement('span');s.textContent=f.value;s.dir='auto';b.appendChild(s)}}
