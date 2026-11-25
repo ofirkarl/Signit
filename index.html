@@ -108,7 +108,7 @@ button,label[for]{cursor:pointer}
 #fpanel.min .fzoom,#fpanel.min .fedit{display:none}
 #fpanel.min .fnav{margin-top:6px}
 #fpMin{font-size:18px}
-.lp{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:3px solid var(--tab);pointer-events:none;animation:lp .5s linear forwards;z-index:5}
+.lp{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:3px solid var(--tab);pointer-events:none;animation:lp .4s linear forwards;z-index:5}
 @keyframes lp{from{transform:scale(.3);opacity:.3}to{transform:scale(1);opacity:1}}
 .qtype{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.qtype .chip{flex:1 1 auto}
 #pages{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -273,7 +273,7 @@ select.chip{padding:0 8px}
 <!-- ============ מסמך ============ -->
 <section class="view" id="v-doc" hidden>
  <header class="bar"><button class="ib own" id="docBack" aria-label="חזרה">→</button><h1 id="docName"></h1><button class="ib own" id="menuB" aria-label="עוד פעולות">⋮</button></header>
- <div class="hintbar" id="toolHint" hidden><span>הקישו במסמך במקום שבו יופיע השדה</span><button id="toolCancel">ביטול</button></div>
+ <div class="hintbar" id="toolHint" hidden><span>הקישו על הקו במסמך שבו יופיע השדה</span><button id="toolCancel">ביטול</button></div>
  <div class="note" id="noteV" hidden></div>
  <div class="zoomc" id="zoomC"><button id="zOut" aria-label="הקטנה">−</button><span id="zLbl">100%</span><button id="zIn" aria-label="הגדלה">＋</button></div>
  <div id="pz"><div id="pages"></div></div>
@@ -508,7 +508,24 @@ async function openBytes(bytes,name,preset){
 
 /* ================= page rendering ================= */
 const zoomNow=()=>(window.visualViewport&&visualViewport.scale)||1;
-function refineLines(p){if(!S.ready||p.refined||!p.canvas||!p.canvas.width)return;p.refined=true;const c=p.canvas,sc=c.width/p.vp.width;let ctx;try{ctx=c.getContext('2d',{willReadFrequently:true})}catch(e){return}let ch=0;
+function darkRuns(p,x0,x1,y0,y1,gapPt){const c=p.canvas;if(!c||!c.width)return[];const sc=c.width/p.vp.width;let ctx;try{ctx=c.getContext('2d',{willReadFrequently:true})}catch(e){return[]}
+ const X0=Math.max(0,Math.floor(x0*sc)),X1=Math.min(c.width,Math.ceil(x1*sc)),Y0=Math.max(0,Math.floor(y0*sc)),Y1=Math.min(c.height,Math.ceil(y1*sc)),W=X1-X0,H=Y1-Y0;if(W<2||H<1)return[];
+ let d;try{d=ctx.getImageData(X0,Y0,W,H).data}catch(e){return[]}const gap=Math.max(1.5,gapPt*sc),out=[];
+ for(let r=0;r<H;r++){let st=-1,last=-1e9;for(let i=0;i<W;i++){const k=(r*W+i)*4;if(d[k+3]>100&&d[k]+d[k+1]+d[k+2]<420){if(st<0||i-last>gap){if(st>=0)out.push({y:(Y0+r)/sc,x:(X0+st)/sc,w:(last-st+1)/sc});st=i}last=i}}if(st>=0)out.push({y:(Y0+r)/sc,x:(X0+st)/sc,w:(last-st+1)/sc})}
+ return out}
+const fontNear=(p,y)=>{let best=null,bd=1e9;for(const it of p.items||[]){if(!it.s.trim())continue;const d=Math.abs(it.base-y);if(d<bd){bd=d;best=it}}return best&&bd<40?clamp(best.h,6,30):11};
+/* the line segment under a point (for long-press and the + tool) */
+function snapLine(p,x,y){const fh=fontNear(p,y);const runs=darkRuns(p,0,p.vp.width,y-fh*.9,y+fh*.9,.6).filter(r=>r.w>=Math.max(8,fh*1.3)&&x>=r.x-8&&x<=r.x+r.w+8);
+ if(!runs.length)return null;runs.sort((a,b)=>Math.abs(a.y-y)-Math.abs(b.y-y));let r=runs[0];for(const o of runs)if(Math.abs(o.x-r.x)<2&&Math.abs(o.w-r.w)<3&&o.y<r.y)r=o;return{x:r.x,w:r.w,ly:r.y,fh}}
+function refineLines(p){if(!S.ready||p.refined||!p.drawn)return;p.refined=true;const c=p.canvas,sc=c.width/p.vp.width;let ctx;try{ctx=c.getContext('2d',{willReadFrequently:true})}catch(e){return}let ch=0;
+ const used=new Set();
+ for(const f of S.fields){if(f.page!==p.n||f.src!=='auto'||f.type==='check'||f.ly!=null||f.kind!=='u'||f.base==null)continue;
+  const h=f.fh||11,est=[f.l0!=null?f.l0:f.x,f.r0!=null?f.r0:f.x+f.w];
+  const runs=darkRuns(p,(f.ix0??est[0])-6,(f.ix1??est[1])+6,f.base+.2,f.base+Math.max(3,h*.5),.6).filter(r=>r.w>=Math.max(6,h*.8));
+  const seen=[];for(const r of runs){const o=seen.find(q=>Math.abs(q.x-r.x)<2&&Math.abs(q.w-r.w)<3);if(o){if(r.y<o.y)o.y=r.y}else seen.push({...r})}
+  const sc=r=>{const ov=Math.min(r.x+r.w,est[1])-Math.max(r.x,est[0]);return ov>0?ov:-Math.abs((r.x+r.w/2)-(est[0]+est[1])/2)};
+  const cand=seen.filter(r=>!used.has(Math.round(r.x)+':'+Math.round(r.y))).sort((a,b)=>sc(b)-sc(a))[0];
+  if(cand&&sc(cand)>-h*4){used.add(Math.round(cand.x)+':'+Math.round(cand.y));if(!TEXTY(f))f.h=Math.max(f.h,Math.min(cand.w*.35,46));f.x=cand.x;f.w=cand.w;f.w0=cand.w;f.ly=cand.y;f.y=cand.y-f.h;f.l0=f.x;f.r0=f.x+f.w;f.c0=f.x+f.w/2;ch++;if(f.value)fit(f)}}
  for(const f of S.fields){if(f.page!==p.n||f.src!=='auto'||!TEXTY(f)||f.ly!=null)continue;
   const L=f.l0!=null?f.l0:f.x,R=f.r0!=null?f.r0:f.x+f.w,x0=Math.max(0,Math.floor((L+2)*sc)),x1=Math.min(c.width,Math.ceil((R-2)*sc)),W=x1-x0;if(W<6)continue;
   const yb=f.base!=null?f.base:f.y+f.h-2,y0=Math.max(0,Math.floor((yb-5)*sc)),y1=Math.min(c.height,Math.ceil((yb+9)*sc));if(y1<=y0)continue;
@@ -523,7 +540,7 @@ async function renderPage(p,force){const W=p.wrap.clientWidth;if(!W)return;p.wra
  const vp=p.page.getViewport({scale:px/p.vp.width});if(p.task)try{p.task.cancel()}catch(e){}
  const c=document.createElement('canvas');c.width=Math.floor(vp.width);c.height=Math.floor(vp.height);
  p.task=p.page.render({canvasContext:c.getContext('2d'),viewport:vp});try{await p.task.promise}catch(e){return}
- p.wrap.replaceChild(c,p.canvas);p.canvas=c;refineLines(p)}
+ p.wrap.replaceChild(c,p.canvas);p.canvas=c;p.drawn=true;refineLines(p)}
 let rT;const rerender=()=>{clearTimeout(rT);rT=setTimeout(()=>{const vh=innerHeight;S.pages.forEach(p=>{const r=p.wrap.getBoundingClientRect();if(r.bottom>-vh&&r.top<vh*2)renderPage(p)})},250)};
 const pagesRO=new ResizeObserver(()=>{S.pages.forEach(p=>p.wrap.style.setProperty('--k',p.wrap.clientWidth/p.vp.width));rerender()});pagesRO.observe($('#pages'));
 if(window.visualViewport)visualViewport.addEventListener('resize',rerender);addEventListener('scroll',()=>{if(cur==='doc'&&zoomNow()>1.05)rerender()},{passive:true});
@@ -569,6 +586,7 @@ async function detectPage(p,addFields){
  let tc={items:[]};try{tc=await page.getTextContent()}catch(e){}
  S.rtl=(S.rtl||0)+tc.items.reduce((a,i)=>a+(i.dir==='rtl'&&HEB.test(i.str)?1:i.dir==='ltr'&&/[a-z]/i.test(i.str)?-1:0),0);
  const items=tc.items.filter(i=>typeof i.str==='string').map(i=>{const tx=mul(vp.transform,i.transform);const fh=Math.hypot(tx[2],tx[3])||Math.abs(i.height)||10;return{s:i.str,dir:i.dir,x:tx[4],base:tx[5],y:tx[5]-fh,h:fh,w:i.width}});
+ p.items=items;
  if(addFields){
   const formRects=out.slice();
   for(const it of items){BL.lastIndex=0;let m;while((m=BL.exec(it.s))){const n=it.s.length||1,i=m.index,L=m[0].length;
@@ -577,9 +595,9 @@ async function detectPage(p,addFields){
     const after=it.s.slice(i+L).replace(/^[_.…:\-\s]+/,'').trim();
     if(!label)label=neighborLabel(items,it,x,w);
     const t=classify(label||after),h=t==='sig'?32:t==='ini'?28:clamp(it.h*1.5,12,24);
-    const r={x,y:it.base-h+2,w:Math.max(w,t==='sig'?110:w),h};
+    const r={x,y:it.base-h+2,w,h};
     if(formRects.some(f=>overlap(f,r)>.3))continue;
-    const nf=mk(p.n,r,t,label||after,'auto');nf.base=it.base;out.push(nf)}}
+    const nf=mk(p.n,r,t,label||after,'auto');nf.base=it.base;nf.fh=it.h;nf.ix0=it.x;nf.ix1=it.x+it.w;nf.kind=/^[_\-]/.test(m[0])?'u':'d';out.push(nf)}}
   for(const it of items){const s=it.s.trim();if(s.length>30||!/חתימ|signature/i.test(s)||BL1.test(s))continue;
    if(out.some(f=>f.type==='sig'&&Math.abs((f.y+f.h)-it.base)<45&&f.x<it.x+it.w+170&&f.x+f.w>it.x-170))continue;
    const r=/:\s*$/.test(s)||/^:/.test(s)?{x:it.dir==='rtl'?it.x-150:it.x+it.w+8,y:it.base-30,w:140,h:32}:{x:it.x+it.w/2-70,y:it.y-38,w:140,h:32};
@@ -626,20 +644,25 @@ function undo(){if(!S.undo.length){toast('אין מה לבטל');return}S.fields
 /* page interactions */
 const pagesEl=$('#pages');
 /* long-press on an empty spot: add a field there */
-const SZ={text:[160,20],date:[90,20],dday:[40,20],dmonth:[70,20],dyear:[50,20],check:[16,16],sig:[150,46],ini:[70,34]};
-let lpT=null,lpAt=null,lpDone=false;
-function addFieldAt(pg,cx,cy,type){const p=S.pages[pg.dataset.n-1],r=pg.getBoundingClientRect(),k=r.width/p.vp.width;
- const sz=SZ[type]||[90,20];const x=(cx-r.left)/k-sz[0]/2,y=(cy-r.top)/k-sz[1]/2;
- snap();const f=mk(p.n,{x:clamp(x,0,p.vp.width-sz[0]),y:clamp(y,0,p.vp.height-sz[1]),w:sz[0],h:sz[1]},type,TYPES[type].l,'manual');if(DATEY(f.type))f.value=defVal(f.type);
+const SZ={text:[130,20],date:[90,20],dday:[40,20],dmonth:[70,20],dyear:[50,20],check:[16,16],sig:[150,46],ini:[70,34]};
+let lpT=null,lpR=null,lpAt=null,lpDone=false;const lpPtr=new Set();
+function sizeFor(type,fh){const k=fh/12,b=SZ[type]||[90,20];return[b[0]*k,b[1]*k]}
+function addFieldAt(pg,cx,cy,type){const p=S.pages[pg.dataset.n-1],r=pg.getBoundingClientRect(),k=r.width/p.vp.width,px=(cx-r.left)/k,py=(cy-r.top)/k;
+ const sn=['check','sig','ini'].includes(type)?null:snapLine(p,px,py),fh=sn?sn.fh:fontNear(p,py);let rect;
+ if(sn){const h=clamp(fh*1.5,9,30);rect={x:sn.x,y:sn.ly-h,w:sn.w,h}}
+ else{const[w,h]=sizeFor(type,fh);rect={x:px-w/2,y:['check','sig','ini'].includes(type)?py-h/2:py-h+fh*.3,w,h}}
+ rect.x=clamp(rect.x,0,p.vp.width-rect.w);rect.y=clamp(rect.y,0,p.vp.height-rect.h);
+ snap();const f=mk(p.n,rect,type,TYPES[type].l,'manual');f.fh=fh;if(sn){f.ly=sn.ly;f.w0=sn.w}if(DATEY(f.type))f.value=defVal(f.type);
  if((f.type==='sig'||f.type==='ini')&&S[f.type])f.value=true;
  S.fields.push(f);renderFields();saveDraft();setMin(false);openField(f);return f}
-pagesEl.addEventListener('pointerdown',e=>{if(MODE!=='owner'||S.tool||e.target.closest('.f'))return;const pg=e.target.closest('.page');if(!pg)return;
- lpDone=false;lpAt={x:e.clientX,y:e.clientY,pg};clearTimeout(lpT);
- const r=pg.getBoundingClientRect(),ring=document.createElement('span');ring.className='lp';ring.style.left=(e.clientX-r.left)+'px';ring.style.top=(e.clientY-r.top)+'px';pg.appendChild(ring);lpAt.ring=ring;
- lpT=setTimeout(()=>{ring.remove();lpDone=true;if(navigator.vibrate)try{navigator.vibrate(15)}catch(err){}addFieldAt(pg,lpAt.x,lpAt.y,'text')},500)});
-const lpCancel=()=>{clearTimeout(lpT);if(lpAt&&lpAt.ring)lpAt.ring.remove()};
+const lpCancel=()=>{clearTimeout(lpT);clearTimeout(lpR);lpAt=null;$$('#pages .lp').forEach(r=>r.remove())};
+pagesEl.addEventListener('pointerdown',e=>{lpPtr.add(e.pointerId);lpCancel();if(lpPtr.size>1||MODE!=='owner'||S.tool||e.target.closest('.f'))return;const pg=e.target.closest('.page');if(!pg)return;
+ lpDone=false;const at=lpAt={x:e.clientX,y:e.clientY,pg};
+ lpR=setTimeout(()=>{if(lpAt!==at)return;const r=pg.getBoundingClientRect(),ring=document.createElement('span');ring.className='lp';ring.style.left=(at.x-r.left)+'px';ring.style.top=(at.y-r.top)+'px';pg.appendChild(ring)},150);
+ lpT=setTimeout(()=>{if(lpAt!==at)return;lpCancel();lpDone=true;if(navigator.vibrate)try{navigator.vibrate(15)}catch(err){}addFieldAt(pg,at.x,at.y,'text')},550)});
 pagesEl.addEventListener('pointermove',e=>{if(lpAt&&Math.hypot(e.clientX-lpAt.x,e.clientY-lpAt.y)>10)lpCancel()});
-['pointerup','pointercancel','pointerleave'].forEach(t=>pagesEl.addEventListener(t,lpCancel));
+['pointerup','pointercancel'].forEach(t=>addEventListener(t,e=>{lpPtr.delete(e.pointerId);lpCancel()}));pagesEl.addEventListener('pointerleave',lpCancel);
+pz.addEventListener('touchstart',e=>{if(e.touches.length>1)lpCancel()},{passive:true});
 pz.addEventListener('scroll',lpCancel,{passive:true});addEventListener('scroll',lpCancel,{passive:true});
 pagesEl.addEventListener('contextmenu',e=>e.preventDefault());
 pagesEl.addEventListener('click',e=>{if(lpDone){lpDone=false;return}const fe=e.target.closest('.f');
@@ -701,7 +724,7 @@ function renderEdit(f){const E=$('#fpEdit'),own_=MODE==='owner',nm=f.type==='sig
   if(f.type==='dyear')sug.push([String(dn.getFullYear()),String(dn.getFullYear())]);const pk=TYPES[f.type].p;if(own_&&pk&&S.profile[pk]&&S.profile[pk]!==f.value)sug.push([S.profile[pk],S.profile[pk]]);
   if(sug.length)h+=`<div class="chips">${sug.map((s,i)=>`<button class="chip" data-sug="${i}">${esc(s[0])}</button>`).join('')}</div>`;E._sug=sug}
  if(own_&&!f.other)h+=`<div class="adj" aria-label="מיקום וגודל"><span>הזזה</span><button data-nd="0,-1" aria-label="למעלה">↑</button><button data-nd="0,1" aria-label="למטה">↓</button><button data-nd="1,0" aria-label="ימינה">→</button><button data-nd="-1,0" aria-label="שמאלה">←</button><i class="sep"></i>${TEXTY(f)?'<button data-nz="-0.1" aria-label="טקסט קטן יותר">A−</button><button data-nz="0.1" aria-label="טקסט גדול יותר">A+</button>':`<span>גודל</span><button data-nz="-0.1" aria-label="${nm} קטנה יותר">−</button><button data-nz="0.1" aria-label="${nm} גדולה יותר">＋</button>`}</div>`;
- if(own_)h+=`<div class="chips"><select class="chip" id="fpType" aria-label="סוג השדה">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===f.type?' selected':''}>${v.l}</option>`).join('')}</select><button class="chip${f.other?' on':''}" id="fpWho">ממלא: ${f.other?'החותם':'אני'}</button><button class="chip" id="fpDel">ביטול שדה</button></div>`;
+ if(own_)h+=`<div class="chips"><select class="chip" id="fpType" aria-label="סוג השדה">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===f.type?' selected':''}>${v.l}</option>`).join('')}</select><button class="chip${f.other?' on':''}" id="fpWho">ממלא: ${f.other?'החותם':'אני'}</button><button class="chip" id="fpDel">ביטול שדה</button><button class="chip" id="fpAdd">＋ שדה נוסף</button></div>`;
  E.innerHTML=h;const inp=$('#fpI');if(inp){inp.value=f.value||'';if(!('ontouchstart' in window))setTimeout(()=>inp.focus({preventScroll:true}),50)}}
 $('#fpEdit').addEventListener('input',e=>{if(e.target.id!=='fpI')return;const f=byId(FM);if(!f)return;if(!e.target.dataset.snap){snap();e.target.dataset.snap=1}f.value=e.target.value;f._fitting=1;if(fit(f))moved(f);delete f._fitting;zoomVal(f);refreshField(f);saveDraft()});
 $('#fpEdit').addEventListener('keydown',e=>{if(e.target.id==='fpI'&&e.key==='Enter'){e.preventDefault();stepField(1)}});
@@ -710,10 +733,11 @@ $('#fpEdit').addEventListener('click',e=>{const f=byId(FM);if(!f)return;const t=
  if(t.dataset.sug!=null){snap();f.value=$('#fpEdit')._sug[+t.dataset.sug][1];f._fitting=1;if(fit(f))moved(f);delete f._fitting;refreshField(f);renderFP();saveDraft();return}
  switch(t.id){
   case'_':break;
-  default:if(t.dataset.qt){snap();const nt=t.dataset.qt,p=S.pages[f.page-1],sz=SZ[nt]||[90,20],cx=f.x+f.w/2,cy=f.y+f.h/2;
+  default:if(t.dataset.qt){snap();const nt=t.dataset.qt,p=S.pages[f.page-1],sz=sizeFor(nt,f.fh||12),cx=f.x+f.w/2,cy=f.y+f.h/2;
    f.type=nt;f.label=TYPES[nt].l;f.w=sz[0];f.h=sz[1];f.x=clamp(cx-sz[0]/2,0,p.vp.width-sz[0]);f.y=clamp(cy-sz[1]/2,0,p.vp.height-sz[1]);f.sz=1;
    f.value=DATEY(nt)?defVal(nt):nt==='check'?true:(nt==='sig'||nt==='ini')?!!S[nt]:'';renderFields();showField(f);saveDraft();if((nt==='sig'||nt==='ini')&&!S[nt])openPad(nt,()=>{f.value=true;refreshField(f);renderFP()})}break;
   case'fpClr':{snap();f.value='';f._fitting=1;if(fit(f))moved(f);delete f._fitting;const i=$('#fpI');if(i){i.value='';i.focus()}zoomVal(f);refreshField(f);saveDraft();break}
+  case'fpAdd':setMin(true);setTool('text');toast('הקישו על הקו במסמך שבו יופיע השדה');break;
   case'fpChk':snap();f.value=!f.value;refreshField(f);renderFP();saveDraft();break;
   case'fpSign':snap();f.value=true;refreshField(f);renderFP();saveDraft();break;
   case'fpUnsign':snap();f.value=false;refreshField(f);renderFP();saveDraft();break;
@@ -744,7 +768,7 @@ $('#flist').addEventListener('click',e=>{const row=e.target.closest('.frow');if(
  openField(f)});
 
 /* autofill & auto signature */
-function autofill(silent){let n=0;if(!silent)snap();for(const f of S.fields){if(f.other||hasVal(f))continue;const k=TYPES[f.type].p;if(k&&S.profile[k]){f.value=S.profile[k];n++}else if(DATEY(f.type)&&(f.label||'').replace(/[^א-תa-z]/gi,'').length<=6){f.value=defVal(f.type);n++}}return n}
+function autofill(silent){let n=0;if(!silent)snap();for(const f of S.fields){if(f.other||hasVal(f))continue;const k=TYPES[f.type].p;if(k&&S.profile[k]){f.value=S.profile[k];n++}else if(f.type!=='date'&&DATEY(f.type)){f.value=defVal(f.type);n++}else if(f.type==='date'&&(f.label||'').replace(/[^א-תa-z]/gi,'').length<=6){f.value=today();n++}}return n}
 function autoSign(kind){let n=0;if(MODE!=='owner')return 0;for(const f of S.fields){if(f.other||f.value)continue;if((f.type==='sig'||f.type==='ini')&&(!kind||f.type===kind)&&S[f.type]){f.value=true;n++}}return n}
 function iniAll(){if(!S.bytes)return;snap();let n=0;for(const p of S.pages){if(S.fields.some(f=>f.page===p.n&&f.type==='ini'))continue;S.fields.push(mk(p.n,{x:36,y:p.vp.height-58,w:70,h:34},'ini','ראשי תיבות','manual',true));n++}renderFields();saveDraft();closeSheet();if(!S.ini)openPad('ini');else toast(`נוספו ראשי תיבות ב־${n} עמודים`)}
 $('#iniAllB').onclick=iniAll;
