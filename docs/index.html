@@ -24,7 +24,7 @@ button{cursor:pointer}
 .top{background:var(--band);color:#fff;display:flex;align-items:center;gap:8px;padding:10px max(3vw,12px);flex-wrap:wrap;position:sticky;top:0;z-index:30;padding-top:max(10px,env(safe-area-inset-top))}
 .brand{font-weight:700;font-size:20px}
 .fname{opacity:.8;font-size:14px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.top .b{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #ffffff55;background:transparent;color:#fff;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.top .b{text-decoration:none;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #ffffff55;background:transparent;color:#fff;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .top .b.p{background:#fff;color:#1f37c4;border-color:#fff;font-weight:700}
 .top .b:disabled{opacity:.45;cursor:default}
 .work{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:calc(100vh - 64px)}
@@ -175,6 +175,7 @@ details summary{cursor:pointer;font-weight:500;min-height:36px;display:flex;alig
 <header class="top">
  <span class="brand">Signit <span style="font-weight:400">מסמכים</span></span>
  <span class="fname" id="fname"></span>
+ <a class="b own" href="../" title="חזרה ל־Signit (הסכמי הרכב)">🚗<span class="t">Signit</span></a>
  <button class="b own" id="docsB" title="המסמכים שלי">🗂<span class="t">המסמכים שלי</span></button>
  <label class="b own" for="file" title="פתח PDF">📄<span class="t">פתח PDF</span></label>
  <button class="b" id="undoB" disabled title="בטל פעולה">↶<span class="t">בטל</span></button>
