@@ -48,6 +48,12 @@ button,label[for]{cursor:pointer}
 .fld textarea{min-height:110px;resize:vertical;line-height:1.5}
 .ltr{direction:ltr;text-align:left}
 .list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.item .h b{flex:1;min-width:0;overflow-wrap:anywhere}.item .h .st{flex:none}
+.acts{display:flex;gap:8px;flex-wrap:wrap}.acts>*{flex:1 1 0;min-width:0;white-space:nowrap}
+.vwacts{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px 0;max-width:760px;margin:0 auto}.vwacts:empty{display:none}.vwacts>*{flex:1 1 auto}
+#vwPages{padding:12px 12px 40px;max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+#vwPages canvas{width:100%;height:auto;background:#fff;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.12)}
+#vwName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
 .item .h{display:flex;gap:10px;align-items:baseline;justify-content:space-between}
 .item b{font-size:16px}
@@ -275,6 +281,11 @@ select.chip{padding:0 8px}
 </section>
 
 <!-- ============ הודעה ============ -->
+<section class="view" id="v-view" hidden>
+ <header class="bar"><button class="ib" data-back aria-label="חזרה">→</button><h1 id="vwName"></h1><button class="ib" id="vwShare" aria-label="שיתוף הקובץ" title="שיתוף הקובץ">⇪</button><button class="ib" id="vwSave" aria-label="שמירה במכשיר" title="שמירה במכשיר">⬇</button></header>
+ <div class="vwacts" id="vwActs"></div>
+ <div id="vwPages"><p class="muted center" id="vwInfo"></p></div>
+</section>
 <section class="view" id="v-msg" hidden><div class="wrap center"><h1 id="msgH"></h1><p class="muted" id="msgP"></p><div class="row" id="msgA" style="justify-content:center"></div></div></section>
 
 
@@ -339,7 +350,7 @@ select.chip{padding:0 8px}
 
 <script>
 {
-const BUILD='2026-11-25 19:40';
+const BUILD='2026-11-26 01:50';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -439,8 +450,8 @@ const IDB={db:null,async open(){if(this.db)return this.db;return this.db=await n
  async put(v){try{const db=await this.open();await new Promise((res,rej)=>{const t=db.transaction('d','readwrite');t.objectStore('d').put(v,'draft');t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}},
  async get(){try{const db=await this.open();return await new Promise(res=>{const r=db.transaction('d').objectStore('d').get('draft');r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null)})}catch(e){return null}},
  async clear(){try{const db=await this.open();db.transaction('d','readwrite').objectStore('d').delete('draft')}catch(e){}}};
-let dT;function saveDraft(){if(!S.bytes||MODE!=='owner')return;clearTimeout(dT);dT=setTimeout(()=>IDB.put({bytes:S.bytes,name:S.name,fields:S.fields,summary:S.summary,done:[...S.doneActs],doneAt:S.doneAt||0,at:Date.now()}),600)}
-async function draftCard(box){const d=await IDB.get();if(!d||!d.bytes){box.innerHTML='';return}const dn=d.done||[],fin=dn.length>0,when=new Date(fin&&d.doneAt||d.at).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'});
+let dT;function saveDraft(){if(!S.bytes||MODE!=='owner')return;clearTimeout(dT);dT=setTimeout(()=>IDB.put({bytes:S.bytes,name:S.name,fields:S.fields,summary:S.summary,done:[...S.doneActs],doneAt:S.doneAt||0,out:S.outBytes||null,at:Date.now()}),600)}
+async function draftCard(box,d){if(!d||!d.bytes){box.innerHTML='';return}const dn=d.done||[],fin=dn.length>0,when=new Date(fin&&d.doneAt||d.at).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'});
  const pill=!fin?'<span class="st draft">טיוטה</span>':dn.includes('send')?'<span class="st pending">נשלח · ממתין לחתימה</span>':'<span class="st signed">הושלם ✓</span>';
  const sub=!fin?`נשמרה ${esc(when)}`:`${esc(doneText(dn))} · ${esc(when)}`+(dn.includes('send')?'<br>המסמך החתום יחזור אליך ל־Drive ויופיע ברשימה למטה':'');
  box.innerHTML=`<div class="item${fin?' fin':''}"><div class="h"><b></b>${pill}</div><span class="muted">${sub}</span><div class="row mt">${fin?'<button class="btn2" data-a="open">פתיחה</button><button class="btn2" data-a="del">הסרה מהרשימה</button>':'<button class="btn1" data-a="open">המשך עריכה</button><button class="btn2" data-a="del">מחיקה</button>'}</div></div>`;
@@ -452,15 +463,51 @@ const ACTL={dev:'נשמר במכשיר',share:'שותף',drive:'נשמר ב־Dri
 const doneText=a=>['send','drive','dev','share'].filter(k=>a.includes(k)).map(k=>ACTL[k]).join(' · ');
 const fmtD=s=>s?new Date(s).toLocaleDateString('he-IL',{day:'numeric',month:'short'}):'';
 let DOCS=[];
-async function loadDocs(){draftCard($('#docsDraft'));const L=$('#docsL'),info=$('#docsInfo');
- if(!S.srv){info.innerHTML='כדי לראות כאן מסמכים ששלחת או שמרת, חברו את שרת המסמכים ב<a href="#" data-go="settings">הגדרות</a>.';L.innerHTML='';return}
- info.innerHTML='<span class="spin"></span>טוען…';try{DOCS=await own('listDocs');info.textContent=DOCS.length?'':'עוד אין מסמכים. מסמך שתשלח לחתימה או תשמור ב־Drive יופיע כאן.';
-  L.innerHTML=DOCS.map((d,i)=>`<li class="item" data-i="${i}"><div class="h"><b>${esc(d.name)}</b><span class="st ${esc(d.status)}">${STL[d.status]||''}</span></div><span class="muted">${d.to?esc(d.to)+' · ':''}${d.status==='signed'?'נחתם '+esc(fmtD(d.signedAt))+(d.signer?' על ידי '+esc(d.signer):''):'נוצר '+esc(fmtD(d.createdAt))}</span><div class="row mt">${d.status==='pending'?'<button class="btn2" data-a="link">שיתוף הקישור</button>':'<button class="btn2" data-a="share">שיתוף הקובץ</button><button class="btn2" data-a="save">שמירה</button>'}<a class="btn2" href="${esc(d.folderUrl)}" target="_blank" rel="noopener">Drive</a></div></li>`).join('')}catch(e){info.textContent=errMsg(e);L.innerHTML=''}}
-$('#docsL').addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b)return;const d=DOCS[b.closest('li').dataset.i];
- if(b.dataset.a==='link'){shareLink(signLink(d.id,d.token),d.name);return}
- if(b.dataset.a==='share2'&&d._bytes){shareFile(d._bytes,outName(d.name));b.textContent='שיתוף הקובץ';b.dataset.a='share';return}
- const t=b.textContent;b.disabled=true;b.innerHTML='<span class="spin"></span>';try{const r=await own('getPdf',d.id);d._bytes=fromB64(r.pdf);b.disabled=false;
-  if(b.dataset.a==='save'){b.textContent=t;saveToDevice(d._bytes,outName(d.name))}else{b.textContent='לחצו לשיתוף';b.dataset.a='share2'}}catch(err){b.textContent=t;b.disabled=false;toast(errMsg(err))}});
+const norm=n=>String(n||'').replace(/[\\/:*?"<>|]/g,' ').trim().slice(0,80);
+let DRAFT=null,ITEMS=[];
+function rowHtml(it,i){const pill=`<span class="st ${esc(it.status)}">${esc(it.label)}</span>`;
+ return `<li class="item" data-i="${i}"><div class="h"><b>${esc(it.name)}</b>${pill}</div><span class="muted">${it.meta}</span><div class="acts mt"><button class="btn1" data-a="view">צפייה</button><button class="btn2" data-a="edit">עריכה מחודשת</button></div></li>`}
+function localItem(d){const dn=d.done||[];return{local:true,draft:d,name:d.name,status:dn.includes('send')?'pending':'signed',label:dn.includes('send')?'נשלח לחתימה':'הושלם',
+ meta:esc(doneText(dn))+' · '+esc(fmtD(d.doneAt||d.at))}}
+function srvItem(x){return{srv:x,name:x.name,status:x.status,label:STL[x.status]||'',
+ meta:(x.to?esc(x.to)+' · ':'')+(x.status==='signed'?'נחתם '+esc(fmtD(x.signedAt))+(x.signer?' על ידי '+esc(x.signer):''):x.status==='self'?'נשמר ב־Drive '+esc(fmtD(x.createdAt)):'נשלח '+esc(fmtD(x.createdAt)))}}
+function renderRows(){$('#docsL').innerHTML=ITEMS.map(rowHtml).join('')}
+async function loadDocs(){const d=await IDB.get();DRAFT=d&&d.bytes?d:null;const fin=!!(DRAFT&&(DRAFT.done||[]).length);
+ draftCard($('#docsDraft'),fin?null:DRAFT);const info=$('#docsInfo');
+ ITEMS=fin?[localItem(DRAFT)]:[];renderRows();
+ if(!S.srv){info.innerHTML=ITEMS.length?'':'כדי לראות כאן מסמכים ששלחת או שמרת, חברו את שרת המסמכים ב<a href="#" data-go="settings">הגדרות</a>.';return}
+ if(!ITEMS.length)info.innerHTML='<span class="spin"></span>טוען…';
+ try{DOCS=await own('listDocs');const its=DOCS.map(srvItem);
+  if(DRAFT){const same=its.filter(x=>norm(x.name)===norm(DRAFT.name)),dn=DRAFT.done||[];
+   const m=fin?(same.find(x=>dn.includes('send')?x.status!=='self':x.status==='self')||same[0])
+     :same.find(x=>DRAFT.at<=Date.parse(x.srv.createdAt)+120000);
+   if(m){m.draft=DRAFT;if(!fin)$('#docsDraft').innerHTML=''}else if(fin)its.unshift(localItem(DRAFT))}
+  ITEMS=its;renderRows();info.textContent=ITEMS.length?'':'עוד אין מסמכים. מסמך שתשלח לחתימה או תשמור ב־Drive יופיע כאן.'}
+ catch(e){info.textContent=errMsg(e)}}
+async function itemBytes(it){if(it.srv){if(!it.srv._bytes)it.srv._bytes=fromB64((await own('getPdf',it.srv.id)).pdf);return it.srv._bytes}
+ if(it.draft.out)return it.draft.out;throw new Error('אין עותק שמור של הקובץ הסופי. פתחו לעריכה מחודשת ושמרו שוב.')}
+$('#docsL').addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b)return;const it=ITEMS[b.closest('li').dataset.i];
+ const t=b.textContent;b.disabled=true;b.innerHTML='<span class="spin"></span>';
+ try{if(b.dataset.a==='view')await openViewer(it);
+  else if(it.draft)await openBytes(it.draft.bytes,it.draft.name,Object.assign({},it.draft,{done:[],doneAt:0,out:null}));
+  else{await openBytes((await itemBytes(it)).slice(),it.name);toast('נפתח עותק של המסמך לעריכה')}}
+ catch(err){toast(errMsg(err))}b.disabled=false;b.textContent=t});
+/* ================= viewer ================= */
+let VW=null;
+async function openViewer(it){const bytes=await itemBytes(it);VW={it,bytes};$('#vwName').textContent=it.name;
+ const a=[];if(it.srv&&it.srv.status==='pending')a.push('<button class="btn2" data-v="link">שליחת הקישור לחתימה</button>');
+ if(it.srv)a.push(`<a class="btn2" href="${esc(it.srv.folderUrl)}" target="_blank" rel="noopener">פתיחה ב־Drive</a>`);
+ if(it.draft&&!it.srv)a.push('<button class="btn2" data-v="del">הסרה מהרשימה</button>');
+ $('#vwActs').innerHTML=a.join('');const box=$('#vwPages');box.innerHTML='<p class="muted center"><span class="spin"></span>טוען…</p>';go('view');
+ try{const pdf=await pdfjsLib.getDocument({data:bytes.slice(),cMapUrl:PDFJS_DATA+'cmaps/',cMapPacked:true,standardFontDataUrl:PDFJS_DATA+'standard_fonts/'}).promise;box.innerHTML='';
+  const W=Math.min(760,innerWidth)*Math.min(devicePixelRatio||1,2.5);
+  for(let n=1;n<=pdf.numPages;n++){if(VW.bytes!==bytes)return;const pg=await pdf.getPage(n),v0=pg.getViewport({scale:1}),vp=pg.getViewport({scale:W/v0.width}),c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;box.appendChild(c);await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise}}
+ catch(e){box.innerHTML='<p class="muted center">לא הצלחתי להציג את הקובץ</p>'}}
+$('#vwShare').onclick=()=>VW&&shareFile(VW.bytes,outName(VW.it.name));
+$('#vwSave').onclick=()=>VW&&saveToDevice(VW.bytes,outName(VW.it.name));
+$('#vwActs').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(!b||!VW)return;
+ if(b.dataset.v==='link')shareLink(signLink(VW.it.srv.id,VW.it.srv.token),VW.it.name);
+ if(b.dataset.v==='del'){IDB.clear();back()}});
 
 /* ================= open a PDF ================= */
 $('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';closeSheet();if(f)openFile(f)};
@@ -469,7 +516,7 @@ async function openBytes(bytes,name,preset){
  if(!pdfOk){toast('ספריות ה־PDF לא נטענו. בדקו חיבור ופתחו שוב.');return}
  let pdf;try{pdf=await pdfjsLib.getDocument({data:bytes.slice(),cMapUrl:PDFJS_DATA+'cmaps/',cMapPacked:true,standardFontDataUrl:PDFJS_DATA+'standard_fonts/'}).promise}catch(e){toast(e&&e.name==='PasswordException'?'הקובץ מוגן בסיסמה':'לא הצלחתי לפתוח את הקובץ');return}
  if(FM)hideField();
- S.doneActs=new Set();S.doneAt=0;Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
+ S.doneActs=new Set();S.doneAt=0;S.outBytes=null;Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
  $('#docName').textContent=name;S.zoom=2;setZoom(1);$('#sum').innerHTML='';$('#chat').hidden=true;$('#msgs').innerHTML='';$('#sumStatus').textContent='';
  $('#noteV').hidden=!S.note;$('#noteV').textContent=S.note;
  if(MODE==='owner'){if(cur!=='doc')go('doc')}else show('doc');
@@ -477,7 +524,7 @@ async function openBytes(bytes,name,preset){
  for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n);const vp=page.getViewport({scale:1});const wrap=document.createElement('div');wrap.className='page';wrap.style.aspectRatio=vp.width+' / '+vp.height;wrap.dataset.n=n;wrap.innerHTML=`<canvas></canvas><div class="ov"></div><span class="pn">עמוד ${n} מתוך ${pdf.numPages}</span>`;box.appendChild(wrap);S.pages.push({n,page,vp,wrap,canvas:wrap.querySelector('canvas'),ov:wrap.querySelector('.ov')})}
  S.pages.forEach(p=>renderPage(p));
  const txt=[];for(const p of S.pages){txt.push(`--- עמוד ${p.n} ---\n`+await detectPage(p,!preset))}S.text=txt.join('\n');
- if(preset){S.fields=preset.fields||[];S.summary=preset.summary||null;S.doneActs=new Set(preset.done||[]);S.doneAt=preset.doneAt||0;if(S.summary)renderSummary(S.summary)}
+ if(preset){S.fields=preset.fields||[];S.summary=preset.summary||null;S.doneActs=new Set(preset.done||[]);S.doneAt=preset.doneAt||0;S.outBytes=preset.out||null;if(S.summary)renderSummary(S.summary)}
  else{const n=autofill(true),sg=autoSign();S.fields.forEach(fit);toast(`זוהו ${S.fields.length} שדות`+(n+sg?`, ${n+sg} מולאו אוטומטית (מסומנים בכחול לבדיקה)`:''))}
  S.ready=true;renderFields();saveDraft();sizeBar();
 }
@@ -871,7 +918,7 @@ async function shareFile(bytes,name,text){const file=new File([bytes],name,{type
  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:text||''});return'shared'}catch(e){if(e&&e.name==='AbortError')return'cancel'}}
  toast('השיתוף לא נתמך כאן, הקובץ נשמר במקום זאת');await saveToDevice(bytes,name);return'saved'}
 async function busy(btn,fn){btn.disabled=true;try{return await fn()}catch(e){toast(errMsg(e));console.log(e)}finally{btn.disabled=false}}
-const mineBuilt=()=>buildPdf(f=>!f.other);
+const mineBuilt=async()=>S.outBytes=await buildPdf(f=>!f.other);
 S.doneActs=new Set();
 function actionDone(key,msg){S.doneActs.add(key);S.doneAt=Date.now();saveDraft();updateBar();closeSheet();toast(msg)}
 
