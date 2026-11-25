@@ -1,5 +1,5 @@
 // Signit מסמכים — service worker: התקנה, עבודה בלי רשת, וקבלת קבצים משיתוף (וואטסאפ וכו')
-const CACHE = 'sd-v1';
+const CACHE = 'sd-v2';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const LIBS = [
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
@@ -53,7 +53,7 @@ self.addEventListener('fetch', e => {
   }
 
   // ספריות וגופנים: קודם מהמטמון
-  if (/^(cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)$/.test(url.hostname)) {
+  if (/^(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/.test(url.hostname)) {
     e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
       const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r;
     })));
