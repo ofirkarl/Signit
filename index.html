@@ -117,6 +117,11 @@ button,label[for]{cursor:pointer}
 .fhead .pos{color:var(--mut);font-size:14px;white-space:nowrap}
 .fzoom{position:relative;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);margin:8px 0;height:clamp(110px,20vh,170px)}
 #fzc{position:absolute;inset:0;width:100%;height:100%}
+#fzo{position:absolute;inset:0;pointer-events:none}
+#fzo .zf{position:absolute;display:flex;align-items:flex-end;justify-content:center;color:#14206e;font-weight:500;white-space:nowrap;overflow:visible}
+#fzo .zf.c{align-items:center}#fzo .zf img{width:100%;height:100%;object-fit:contain}
+#fzo .zf span{line-height:1;transform:translateY(calc(var(--bo,0) * var(--zk,1) * 1px))}
+#fzo .zf.empty{background:rgba(255,224,74,.22);box-shadow:inset 0 -2px 0 #e0b400}
 #fzbox{position:absolute;border:2.5px solid var(--tab);border-radius:4px;background:rgba(255,224,74,.14);display:flex;align-items:flex-end;justify-content:center;color:#14206e;font-weight:500;overflow:hidden;white-space:nowrap;padding:0 3px}
 #fzbox img{height:100%;width:100%;object-fit:contain}
 #fzbox>span{line-height:1;white-space:nowrap;transform:translateY(calc(var(--bo,0) * var(--zk,1) * 1px))}
@@ -284,7 +289,7 @@ select.chip{padding:0 8px}
  </div></div>
  <div id="fpanel" hidden><div>
   <div class="fhead"><b id="fpLbl"></b><span class="pos" id="fpPos"></span><button class="ib" id="fpMin" aria-label="מזעור לקריאת המסמך" title="מזעור לקריאת המסמך">▾</button><button class="ib" id="fpClose" aria-label="סגירה">✕</button></div>
-  <div class="fzoom" id="fzoom"><canvas id="fzc"></canvas><div id="fzbox"></div><span id="fzrz" class="own" aria-label="שינוי גודל השדה"></span><span class="zhint own">גררו את המסגרת להזזה, ואת העיגול לשינוי גודל</span></div>
+  <div class="fzoom" id="fzoom"><canvas id="fzc"></canvas><div id="fzo"></div><div id="fzbox"></div><span id="fzrz" class="own" aria-label="שינוי גודל השדה"></span><span class="zhint own">גררו את המסגרת להזזה, ואת העיגול לשינוי גודל</span></div>
   <div class="fedit" id="fpEdit"></div>
   <div class="fnav"><button class="btn2" id="fpPrev">→ הקודם</button><button class="btn1" id="fpNext">הבא ←</button></div>
  </div></div>
@@ -535,10 +540,12 @@ function lineInfo(p,bl,fh,blanks){const items=(p.items||[]).filter(it=>it.s.trim
  const inBlank=x=>blanks.some(o=>Math.abs(o.ly-bl.ly)<fh*.8&&x>=o.x*sc-1&&x<=(o.x+o.w)*sc+1);const cl=[];let cur=null;const gap=fh*.9*sc;
  for(let x=xMin;x<xMax;x++){let ink=0;if(!inBlank(x))for(let y=Math.max(0,yA);y<Math.min(P.H,yB);y++)if(P.b[y*P.W+x]){ink=1;break}
   if(ink){if(cur&&x-cur.x1<=gap&&!(blanks.some(o=>Math.abs(o.ly-bl.ly)<fh*.8&&o.x*sc>cur.x1&&o.x*sc<x)))cur.x1=x;else{cur={x0:x,x1:x};cl.push(cur)}}}
- const segs=[];for(const it of items){mctx.font=`${it.h}px Arial`;const full=mctx.measureText(it.s).width||1,k=it.w/full;
+ const C=cl.map(c=>({x:c.x0/sc,w:(c.x1-c.x0+1)/sc,t:''})),segs=[];
+ for(const it of items.filter(i=>!/_{2,}|[.…]{4,}/.test(i.s)).sort((a,b)=>S.rtl>=0?b.x-a.x:a.x-b.x)){let best=null,bo_=0;for(const c of C){const ov=Math.min(c.x+c.w,it.x+it.w)-Math.max(c.x,it.x);if(ov>bo_){bo_=ov;best=c}}if(best&&bo_>it.w*.4){best.t=(best.t?best.t+' ':'')+it.s.trim();best.fixed=1}}
+ for(const it of items.filter(i=>/_{2,}|[.…]{4,}/.test(i.s))){mctx.font=`${it.h}px Arial`;const full=mctx.measureText(it.s).width||1,k=it.w/full;
   for(const t of it.s.split(/_{2,}|[.…]{4,}/)){const w=t.trim();if(!w||/^[\s:.\-]+$/.test(w))continue;segs.push({t:w,w:mctx.measureText(w).width*k})}}
- const C=cl.map(c=>({x:c.x0/sc,w:(c.x1-c.x0+1)/sc,t:''})),pairs=[];
- segs.forEach((sg,i)=>C.forEach((c,j)=>pairs.push({i,j,e:Math.abs(sg.w-c.w)/Math.max(sg.w,c.w,1)})));pairs.sort((a,b)=>a.e-b.e);const ui=new Set(),uj=new Set();
+ const pairs=[];
+ segs.forEach((sg,i)=>C.forEach((c,j)=>c.fixed||pairs.push({i,j,e:Math.abs(sg.w-c.w)/Math.max(sg.w,c.w,1)})));pairs.sort((a,b)=>a.e-b.e);const ui=new Set(),uj=new Set();
  for(const q of pairs){if(q.e>.45)break;if(ui.has(q.i)||uj.has(q.j))continue;ui.add(q.i);uj.add(q.j);C[q.j].t=segs[q.i].t}
  return p.lines[key]={C,items}}
 function lineLabel(p,bl,fh,blanks){const L=lineInfo(p,bl,fh,blanks);const R=bl.x+bl.w,rtl=S.rtl>=0;
@@ -650,7 +657,8 @@ function fit(f){if(!TEXTY(f))return false;const p=S.pages[f.page-1];if(!p)return
 function hasVal(f){if(f.type==='sig')return!!(f.value&&S.sig);if(f.type==='ini')return!!(f.value&&S.ini);if(f.type==='check')return!!f.value;return String(f.value||'').trim()!==''}
 const inScope=f=>MODE==='signer'||!f.other;
 const sorted=()=>[...S.fields].sort((a,b)=>a.page-b.page||a.y-b.y||b.x-a.x);
-const lbl=f=>f.label||TYPES[f.type].l;
+const cleanLbl=l=>{l=String(l||'').replace(/[_.…"״'”“()\[\]]+/g,' ').replace(/\s+/g,' ').replace(/^[\s:]+|[\s:]+$/g,'');return /[א-תa-z]{2}/i.test(l)?l:''};
+const lbl=f=>cleanLbl(f.label)||TYPES[f.type].l;
 const BASE_GAP=1;const bo=f=>.1455*fs(f)-BASE_GAP;
 function posCss(f,p){return`left:${f.x/p.vp.width*100}%;top:${f.y/p.vp.height*100}%;width:${f.w/p.vp.width*100}%;height:${f.h/p.vp.height*100}%;--fs:${fs(f)};--bo:${bo(f)}`}
 function valHTML(f){if((f.type==='sig'||f.type==='ini')&&f.value&&S[f.type])return`<img alt="" src="${esc(S[f.type])}">`;if(f.type==='check')return`<span class="fv">${f.value?'✓':''}</span>`;
@@ -726,6 +734,10 @@ function renderFP(){const f=byId(FM);if(!f)return;const all=sorted().filter(inSc
  $('#fpPrev').disabled=i<=0;const last=i===all.length-1;$('#fpNext').textContent=last?(MODE==='signer'?'סיום ושליחה':'סיום'):'הבא ←';
  renderEdit(f);renderZoom(f)}
 let zTask=null,Z=null,zT;
+function zoomOthers(f){const L=$('#fzo');if(!L||!Z||Z.id!==f.id)return;const p=S.pages[f.page-1],vw=$('#fzoom').clientWidth/Z.k,vh=$('#fzoom').clientHeight/Z.k;
+ L.innerHTML=S.fields.filter(o=>o.page===f.page&&o.id!==f.id&&o.x<Z.rx+vw&&o.x+o.w>Z.rx&&o.y<Z.ry+vh&&o.y+o.h>Z.ry).map(o=>{const has=hasVal(o),tx=TEXTY(o);
+  const inner=(o.type==='sig'||o.type==='ini')?(has?`<img alt="" src="${esc(S[o.type])}">`:''):o.type==='check'?(o.value?'✓':''):has?`<span dir="auto">${esc(o.value)}</span>`:'';
+  return`<div class="zf${tx?'':' c'}${has||o.other?'':' empty'}" style="--zk:${Z.k};--bo:${bo(o)};left:${(o.x-Z.rx)*Z.k}px;top:${(o.y-Z.ry)*Z.k}px;width:${o.w*Z.k}px;height:${o.h*Z.k}px;font-size:${fs(o)*Z.k}px">${inner}</div>`}).join('')}
 function placeBox(f){if(!Z||Z.id!==f.id)return;$('#fzbox').style.setProperty('--zk',Z.k);const h=$('#fzrz');if(h){h.hidden=MODE!=='owner'||f.other;h.style.left=((f.x+f.w-Z.rx)*Z.k)+'px';h.style.top=((f.y+f.h-Z.ry)*Z.k)+'px'}$('#fzbox').className=TEXTY(f)?'tx':'';$('#fzbox').style.cssText=`--zk:${Z.k};--bo:${bo(f)};left:${(f.x-Z.rx)*Z.k}px;top:${(f.y-Z.ry)*Z.k}px;width:${f.w*Z.k}px;height:${f.h*Z.k}px;font-size:${fs(f)*Z.k}px`}
 function moved(f){if(!f._fitting){f.r0=f.x+f.w;f.l0=f.x;f.c0=f.x+f.w/2}const p=S.pages[f.page-1],e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.cssText=posCss(f,p);placeBox(f);saveDraft();clearTimeout(zT);zT=setTimeout(()=>{if(FM===f.id)renderZoom(f)},700)}
 function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];
@@ -735,7 +747,7 @@ function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];
 async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W)return;const dpr=Math.min(window.devicePixelRatio||1,3);
  let rw=Math.min(Math.max(f.w*1.84,230),p.vp.width),rh=rw*H/W;if(rh<f.h*2.76){rh=f.h*2.76;rw=rh*W/H}
  const rx=clamp(f.x+f.w/2-rw/2,0,Math.max(0,p.vp.width-rw)),ry=clamp(f.y+f.h/2-rh/2,0,Math.max(0,p.vp.height-rh)),s=W*dpr/rw,k=W/rw;
- Z={rx,ry,k,id:f.id};placeBox(f);zoomVal(f);
+ Z={rx,ry,k,id:f.id};placeBox(f);zoomVal(f);zoomOthers(f);
  const c=document.createElement('canvas');c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
  if(zTask)try{zTask.cancel()}catch(e){}const my=zTask=p.page.render({canvasContext:ctx,viewport:p.page.getViewport({scale:s,offsetX:-rx*s,offsetY:-ry*s})});
  try{await my.promise}catch(e){return}if(my!==zTask||FM!==f.id)return;c.id='fzc';$('#fzc').replaceWith(c)}
