@@ -102,6 +102,10 @@ button,label[for]{cursor:pointer}
 #fpanel.min .fzoom,#fpanel.min .fedit{display:none}
 #fpanel.min .fnav{margin-top:6px}
 #fpMin{font-size:18px}
+.lp{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:3px solid var(--tab);pointer-events:none;animation:lp .5s linear forwards;z-index:5}
+@keyframes lp{from{transform:scale(.3);opacity:.3}to{transform:scale(1);opacity:1}}
+.qtype{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.qtype .chip{flex:1 1 auto}
+#pages{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .fhead{display:flex;align-items:center;gap:8px}
 .fhead b{flex:1;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fhead .pos{color:var(--mut);font-size:14px;white-space:nowrap}
@@ -318,7 +322,7 @@ select.chip{padding:0 8px}
    <div class="row"><button class="btn1" id="sdShare">שיתוף הקישור</button><button class="btn2" id="sdCopy">העתקה</button></div>
   </div>
  </div>
- <div class="sp" data-p="tools"><h2>הוספת שדה</h2>
+ <div class="sp" data-p="tools"><h2>הוספת שדה</h2><p class="muted" style="margin:0 0 6px">טיפ: לחיצה ארוכה על המסמך מוסיפה שדה טקסט במקום הלחיצה.</p>
   <button class="mi" data-tool="text"><span class="i">T</span><span>טקסט</span></button>
   <button class="mi" data-tool="date"><span class="i">📅</span><span>תאריך</span></button>
   <button class="mi" data-tool="check"><span class="i">✓</span><span>סימון</span></button>
@@ -590,14 +594,26 @@ function undo(){if(!S.undo.length){toast('אין מה לבטל');return}S.fields
 
 /* page interactions */
 const pagesEl=$('#pages');
-pagesEl.addEventListener('click',e=>{const fe=e.target.closest('.f');
+/* long-press on an empty spot: add a field there */
+let lpT=null,lpAt=null,lpDone=false;
+function addFieldAt(pg,cx,cy,type){const p=S.pages[pg.dataset.n-1],r=pg.getBoundingClientRect(),k=r.width/p.vp.width;
+ const sz={text:[160,20],date:[90,20],check:[16,16],sig:[150,46],ini:[70,34]}[type];const x=(cx-r.left)/k-sz[0]/2,y=(cy-r.top)/k-sz[1]/2;
+ snap();const f=mk(p.n,{x:clamp(x,0,p.vp.width-sz[0]),y:clamp(y,0,p.vp.height-sz[1]),w:sz[0],h:sz[1]},type,TYPES[type].l,'manual');if(f.type==='date')f.value=today();
+ if((f.type==='sig'||f.type==='ini')&&S[f.type])f.value=true;
+ S.fields.push(f);renderFields();saveDraft();setMin(false);openField(f);return f}
+pagesEl.addEventListener('pointerdown',e=>{if(MODE!=='owner'||S.tool||e.target.closest('.f'))return;const pg=e.target.closest('.page');if(!pg)return;
+ lpDone=false;lpAt={x:e.clientX,y:e.clientY,pg};clearTimeout(lpT);
+ const r=pg.getBoundingClientRect(),ring=document.createElement('span');ring.className='lp';ring.style.left=(e.clientX-r.left)+'px';ring.style.top=(e.clientY-r.top)+'px';pg.appendChild(ring);lpAt.ring=ring;
+ lpT=setTimeout(()=>{ring.remove();lpDone=true;if(navigator.vibrate)try{navigator.vibrate(15)}catch(err){}addFieldAt(pg,lpAt.x,lpAt.y,'text')},500)});
+const lpCancel=()=>{clearTimeout(lpT);if(lpAt&&lpAt.ring)lpAt.ring.remove()};
+pagesEl.addEventListener('pointermove',e=>{if(lpAt&&Math.hypot(e.clientX-lpAt.x,e.clientY-lpAt.y)>10)lpCancel()});
+['pointerup','pointercancel','pointerleave'].forEach(t=>pagesEl.addEventListener(t,lpCancel));
+pz.addEventListener('scroll',lpCancel,{passive:true});addEventListener('scroll',lpCancel,{passive:true});
+pagesEl.addEventListener('contextmenu',e=>e.preventDefault());
+pagesEl.addEventListener('click',e=>{if(lpDone){lpDone=false;return}const fe=e.target.closest('.f');
  if(fe&&!S.tool){setMin(false);openField(byId(fe.dataset.id));return}
  if(!S.tool&&FM&&!$('#fpanel').classList.contains('min')){setMin(true);return}
- if(!S.tool)return;const pg=e.target.closest('.page');if(!pg)return;const p=S.pages[pg.dataset.n-1],r=pg.getBoundingClientRect(),k=r.width/p.vp.width;
- const sz={text:[160,20],date:[90,20],check:[16,16],sig:[150,46],ini:[70,34]}[S.tool];const x=(e.clientX-r.left)/k-sz[0]/2,y=(e.clientY-r.top)/k-sz[1]/2;
- snap();const f=mk(p.n,{x:clamp(x,0,p.vp.width-sz[0]),y:clamp(y,0,p.vp.height-sz[1]),w:sz[0],h:sz[1]},S.tool,TYPES[S.tool].l,'manual');if(f.type==='date')f.value=today();
- if((f.type==='sig'||f.type==='ini')&&S[f.type])f.value=true;
- S.fields.push(f);setTool(null);renderFields();saveDraft();openField(f)});
+ if(!S.tool)return;const pg=e.target.closest('.page');if(!pg)return;const t=S.tool;setTool(null);addFieldAt(pg,e.clientX,e.clientY,t)});
 pagesEl.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('f')){e.preventDefault();openField(byId(e.target.dataset.id))}});
 function setTool(t){S.tool=t;$('#toolHint').hidden=!t;S.pages.forEach(p=>p.ov.classList.toggle('placing',!!t))}
 $('#toolCancel').onclick=()=>setTool(null);
@@ -638,11 +654,13 @@ async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.cli
 function zoomVal(f){const b=$('#fzbox');b.innerHTML='';if((f.type==='sig'||f.type==='ini')){if(f.value&&S[f.type]){const i=new Image();i.src=S[f.type];i.alt='';b.appendChild(i)}else{const s=document.createElement('span');s.className='ph';s.textContent=f.type==='sig'?'חתימה':'ר״ת';b.appendChild(s)}return}
  if(f.type==='check'){b.style.justifyContent='center';b.textContent=f.value?'✓':'';return}
  const s=document.createElement('span');if(String(f.value||'')){s.textContent=f.value;s.dir='auto'}else{s.className='ph';s.textContent=lbl(f)}b.appendChild(s)}
+const QT=[['text','טקסט'],['date','תאריך'],['check','✓'],['sig','חתימה'],['ini','ר״ת']];
 function renderEdit(f){const E=$('#fpEdit'),own_=MODE==='owner',nm=f.type==='sig'?'חתימה':'ראשי תיבות';let h='';
- if(f.other&&own_)h=`<p class="muted" style="margin:4px 0">את השדה הזה ימלא החותם כששולחים לחתימה.</p>`;
- else if(f.type==='check')h=`<button class="btn2 wide" id="fpChk">${f.value?'✓ מסומן · לחצו לביטול':'לחצו לסימון ✓'}</button>`;
- else if(f.type==='sig'||f.type==='ini')h=S[f.type]?(f.value?`<div class="row"><button class="btn2" id="fpUnsign">הסרת ה${nm}</button><button class="btn2" id="fpRedraw">${nm} חדשה</button></div>`:`<div class="row"><button class="btn1" id="fpSign">הוספת ה${nm} כאן</button><button class="btn2" id="fpRedraw">${nm} אחרת</button></div>`):`<button class="btn1 wide" id="fpRedraw">ציור ${nm}</button>`;
- else{const im={id:'numeric',phone:'tel',biz:'numeric'}[f.type]||'text';h=`<div class="inrow"><input id="fpI" dir="auto" inputmode="${im}"${f.type==='email'?' type="email"':''} enterkeyhint="next" autocomplete="off" aria-label="${esc(lbl(f))}" placeholder="${esc(f.type==='date'?'dd/mm/yyyy':'הקלידו כאן')}"><button class="clr" id="fpClr">ניקוי</button></div>`;
+ if(own_&&f.src==='manual'&&!f.other)h+=`<div class="qtype">${QT.map(([k,l])=>`<button class="chip${f.type===k?' on':''}" data-qt="${k}">${l}</button>`).join('')}</div>`;
+ if(f.other&&own_)h+=`<p class="muted" style="margin:4px 0">את השדה הזה ימלא החותם כששולחים לחתימה.</p>`;
+ else if(f.type==='check')h+=`<button class="btn2 wide" id="fpChk">${f.value?'✓ מסומן · לחצו לביטול':'לחצו לסימון ✓'}</button>`;
+ else if(f.type==='sig'||f.type==='ini')h+=S[f.type]?(f.value?`<div class="row"><button class="btn2" id="fpUnsign">הסרת ה${nm}</button><button class="btn2" id="fpRedraw">${nm} חדשה</button></div>`:`<div class="row"><button class="btn1" id="fpSign">הוספת ה${nm} כאן</button><button class="btn2" id="fpRedraw">${nm} אחרת</button></div>`):`<button class="btn1 wide" id="fpRedraw">ציור ${nm}</button>`;
+ else{const im={id:'numeric',phone:'tel',biz:'numeric'}[f.type]||'text';h+=`<div class="inrow"><input id="fpI" dir="auto" inputmode="${im}"${f.type==='email'?' type="email"':''} enterkeyhint="next" autocomplete="off" aria-label="${esc(lbl(f))}" placeholder="${esc(f.type==='date'?'dd/mm/yyyy':'הקלידו כאן')}"><button class="clr" id="fpClr">ניקוי</button></div>`;
   const sug=[];if(f.type==='date'&&f.value!==today())sug.push(['היום',today()]);const pk=TYPES[f.type].p;if(own_&&pk&&S.profile[pk]&&S.profile[pk]!==f.value)sug.push([S.profile[pk],S.profile[pk]]);
   if(sug.length)h+=`<div class="chips">${sug.map((s,i)=>`<button class="chip" data-sug="${i}">${esc(s[0])}</button>`).join('')}</div>`;E._sug=sug}
  if(own_&&!f.other)h+=`<div class="adj" aria-label="מיקום וגודל"><span>הזזה</span><button data-nd="0,-1" aria-label="למעלה">↑</button><button data-nd="0,1" aria-label="למטה">↓</button><button data-nd="1,0" aria-label="ימינה">→</button><button data-nd="-1,0" aria-label="שמאלה">←</button><i class="sep"></i><button data-nz="-0.1" aria-label="טקסט קטן יותר">A−</button><button data-nz="0.1" aria-label="טקסט גדול יותר">A+</button></div>`;
@@ -654,6 +672,10 @@ $('#fpEdit').addEventListener('change',e=>{const f=byId(FM);if(!f||e.target.id!=
 $('#fpEdit').addEventListener('click',e=>{const f=byId(FM);if(!f)return;const t=e.target.closest('button');if(!t)return;
  if(t.dataset.sug!=null){snap();f.value=$('#fpEdit')._sug[+t.dataset.sug][1];refreshField(f);renderFP();saveDraft();return}
  switch(t.id){
+  case'_':break;
+  default:if(t.dataset.qt){snap();const nt=t.dataset.qt,p=S.pages[f.page-1],sz={text:[160,20],date:[90,20],check:[16,16],sig:[150,46],ini:[70,34]}[nt],cx=f.x+f.w/2,cy=f.y+f.h/2;
+   f.type=nt;f.label=TYPES[nt].l;f.w=sz[0];f.h=sz[1];f.x=clamp(cx-sz[0]/2,0,p.vp.width-sz[0]);f.y=clamp(cy-sz[1]/2,0,p.vp.height-sz[1]);f.sz=1;
+   f.value=nt==='date'?today():nt==='check'?true:(nt==='sig'||nt==='ini')?!!S[nt]:'';renderFields();showField(f);saveDraft();if((nt==='sig'||nt==='ini')&&!S[nt])openPad(nt,()=>{f.value=true;refreshField(f);renderFP()})}break;
   case'fpClr':{snap();f.value='';const i=$('#fpI');if(i){i.value='';i.focus()}zoomVal(f);refreshField(f);saveDraft();break}
   case'fpChk':snap();f.value=!f.value;refreshField(f);renderFP();saveDraft();break;
   case'fpSign':snap();f.value=true;refreshField(f);renderFP();saveDraft();break;
