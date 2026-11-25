@@ -140,13 +140,16 @@ select.chip{padding:0 8px}
 /* sheet */
 #scrim{position:fixed;inset:0;background:#0006;z-index:50}
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--card);border-radius:22px 22px 0 0;max-height:86vh;overflow:auto;padding:6px 16px calc(18px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
-.grab{width:42px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 12px}
+.grab{width:42px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 12px;position:relative}
+.grab::before{content:"";position:absolute;inset:-14px -60px}
+#sheet{touch-action:pan-y}#sheet.drag{transition:none}#sheet:not(.drag){transition:transform .2s}
 #sheet h2{font-size:20px;margin:0 0 4px}
 .mi{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;border:0;background:transparent;border-bottom:1px solid var(--line);text-align:start;font-size:16px;padding:6px 2px;color:var(--ink);text-decoration:none}
 .mi:last-child{border-bottom:0}
 .mi .i{width:40px;height:40px;border-radius:12px;background:var(--bg);display:grid;place-items:center;font-size:19px;flex:none}
 .mi small{display:block;color:var(--mut);font-size:13px;font-weight:400}
 .mi:disabled{opacity:.45}
+.okm{margin-inline-start:auto;font-size:13px;font-weight:700;color:var(--ok);white-space:nowrap}
 .frow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:6px 0}
 .frow .go{flex:1;display:flex;align-items:center;gap:10px;border:0;background:transparent;text-align:start;min-height:48px;padding:0}
 .dot{flex:none;width:12px;height:12px;border-radius:50%;background:#ffe04a;border:1px solid #c9a400}
@@ -330,7 +333,7 @@ select.chip{padding:0 8px}
 
 <script>
 {
-const BUILD='2026-11-25 18:55';
+const BUILD='2026-11-25 19:05';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -369,8 +372,8 @@ if(pdfOk)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/aj
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 /* ================= toast ================= */
-let tT;function toast(m,undoable){$('#toastT').textContent=m;$('#toastU').hidden=!undoable;$('#toast').classList.add('on');clearTimeout(tT);tT=setTimeout(()=>$('#toast').classList.remove('on'),undoable?6000:4000)}
-$('#toastU').onclick=()=>{undo();$('#toast').classList.remove('on')};
+let tT,tFn=null;function toast(m,act){$('#toastT').textContent=m;const b=$('#toastU');if(act===true)act={label:'בטל',fn:undo};tFn=act?act.fn:null;b.hidden=!act;if(act)b.textContent=act.label;$('#toast').classList.add('on');clearTimeout(tT);tT=setTimeout(()=>$('#toast').classList.remove('on'),act?7000:4000)}
+$('#toastU').onclick=()=>{$('#toast').classList.remove('on');if(tFn)tFn()};
 
 /* ================= views, nav and the Android back button ================= */
 let cur='',layers=[];
@@ -394,6 +397,12 @@ function showSheet(n){sheetName=n;$$('#sheet .sp').forEach(p=>p.hidden=p.dataset
 function hideSheet(){sheetName=null;$('#sheet').hidden=true;$('#scrim').hidden=true}
 function closeSheet(){if(!sheetName)return;if(layers[layers.length-1]==='sheet')history.back();else hideSheet()}
 $('#scrim').onclick=closeSheet;
+{const sh=$('#sheet');let sy=null,dy=0,t0=0;
+ const start=e=>{if(!e.target.closest('.grab')&&sh.scrollTop>0)return;if(!e.target.closest('.grab')&&!e.target.closest('h2'))return;sy=e.clientY;dy=0;t0=Date.now();sh.classList.add('drag');sh.setPointerCapture?.(e.pointerId)};
+ sh.addEventListener('pointerdown',start);
+ sh.addEventListener('pointermove',e=>{if(sy==null)return;dy=Math.max(0,e.clientY-sy);sh.style.transform=`translateY(${dy}px)`});
+ const end=()=>{if(sy==null)return;const fast=dy>40&&Date.now()-t0<250;sy=null;sh.classList.remove('drag');if(dy>90||fast||dy<4&&Date.now()-t0<300){sh.style.transform='';closeSheet()}else sh.style.transform=''};
+ sh.addEventListener('pointerup',end);sh.addEventListener('pointercancel',()=>{sy=null;sh.classList.remove('drag');sh.style.transform=''})}
 $$('[data-sheet]').forEach(b=>b.onclick=()=>openSheet(b.dataset.sheet));
 
 /* ================= server ================= */
@@ -450,7 +459,7 @@ async function openBytes(bytes,name,preset){
  if(!pdfOk){toast('ספריות ה־PDF לא נטענו. בדקו חיבור ופתחו שוב.');return}
  let pdf;try{pdf=await pdfjsLib.getDocument({data:bytes.slice(),cMapUrl:PDFJS_DATA+'cmaps/',cMapPacked:true,standardFontDataUrl:PDFJS_DATA+'standard_fonts/'}).promise}catch(e){toast(e&&e.name==='PasswordException'?'הקובץ מוגן בסיסמה':'לא הצלחתי לפתוח את הקובץ');return}
  if(FM)hideField();
- Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
+ S.doneActs=new Set();Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
  $('#docName').textContent=name;S.zoom=2;setZoom(1);$('#sum').innerHTML='';$('#chat').hidden=true;$('#msgs').innerHTML='';$('#sumStatus').textContent='';
  $('#noteV').hidden=!S.note;$('#noteV').textContent=S.note;
  if(MODE==='owner'){if(cur!=='doc')go('doc')}else show('doc');
@@ -843,32 +852,35 @@ async function buildPdf(which){try{await document.fonts.load('500 20px Heebo','�
  return await doc.save()}
 const outName=n=>(n||S.name||'מסמך')+' - חתום.pdf';
 async function saveToDevice(bytes,name){
- if(window.showSaveFilePicker){try{const h=await showSaveFilePicker({suggestedName:name,types:[{description:'PDF',accept:{'application/pdf':['.pdf']}}]});const w=await h.createWritable();await w.write(bytes);await w.close();toast('הקובץ נשמר');return}catch(e){if(e&&e.name==='AbortError')return}}
- const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('הקובץ נשמר בהורדות')}
+ if(window.showSaveFilePicker){try{const h=await showSaveFilePicker({suggestedName:name,types:[{description:'PDF',accept:{'application/pdf':['.pdf']}}]});const w=await h.createWritable();await w.write(bytes);await w.close();toast('הקובץ נשמר');return true}catch(e){if(e&&e.name==='AbortError')return false}}
+ const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('הקובץ נשמר בהורדות');return true}
 async function shareFile(bytes,name,text){const file=new File([bytes],name,{type:'application/pdf'});
- if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:text||''});return true}catch(e){if(e&&e.name==='AbortError')return true}}
- toast('השיתוף לא נתמך כאן, הקובץ נשמר במקום זאת');await saveToDevice(bytes,name);return false}
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:text||''});return'shared'}catch(e){if(e&&e.name==='AbortError')return'cancel'}}
+ toast('השיתוף לא נתמך כאן, הקובץ נשמר במקום זאת');await saveToDevice(bytes,name);return'saved'}
 async function busy(btn,fn){btn.disabled=true;try{return await fn()}catch(e){toast(errMsg(e));console.log(e)}finally{btn.disabled=false}}
 const mineBuilt=()=>buildPdf(f=>!f.other);
+S.doneActs=new Set();
+function actionDone(key,msg){S.doneActs.add(key);closeSheet();toast(msg,{label:'פעולה נוספת',fn:()=>openSheet('finish')})}
 
 /* finish sheet */
 function renderFinish(){const rev=S.fields.filter(f=>!f.other&&toReview(f)).length,left=S.fields.filter(f=>!f.other&&!hasVal(f)).length,theirs=S.fields.filter(f=>f.other).length;
  $('#fnLeft').innerHTML=left?`שימו לב: ${left} שדות שלך עדיין ריקים. <button class="chip" id="fnGoEmpty">מעבר לשדות הריקים</button>`:'כל השדות שלך מולאו.';if(rev)$('#fnLeft').insertAdjacentHTML('beforeend',`<br>${rev} שדות מולאו אוטומטית ועוד לא נבדקו. <button class="chip" id="fnGoRev">לבדיקה</button>`);const gr=$('#fnGoRev');if(gr)gr.onclick=()=>{const f=sorted().find(x=>!x.other&&toReview(x));if(f)openField(f)};const ge=$('#fnGoEmpty');if(ge)ge.onclick=()=>{const f=sorted().find(x=>!x.other&&!hasVal(x));if(f)openField(f)};
  $('#fnMenu').hidden=false;$('#sdForm').hidden=true;$('#sdDone').hidden=true;
+ ['fnDev:dev','fnShare:share','fnDrive:drive','fnSend:send'].forEach(x=>{const[id,k]=x.split(':'),b=$('#'+id);b.querySelector('.okm')?.remove();if(S.doneActs.has(k))b.insertAdjacentHTML('beforeend','<span class="okm">✓ בוצע</span>')});
  $('#fnDrive').disabled=!S.srv;$('#fnDriveS').textContent=S.srv?'בתיקיית Signit - מסמכים':'צריך לחבר את שרת המסמכים בהגדרות';
  $('#fnSend').disabled=!S.srv||!theirs;$('#fnSendS').textContent=!S.srv?'צריך לחבר את שרת המסמכים בהגדרות':theirs?`${theirs} שדות יחכו לחותם`:'קודם סמנו ב"שדות" אילו שדות ימלא הצד השני'}
-$('#fnDev').onclick=()=>busy($('#fnDev'),async()=>{await saveToDevice(await mineBuilt(),outName())});
-$('#fnShare').onclick=()=>busy($('#fnShare'),async()=>{await shareFile(await mineBuilt(),outName())});
-$('#fnDrive').onclick=()=>busy($('#fnDrive'),async()=>{await own('saveSigned',{name:S.name,pdf:toB64(await mineBuilt()),summary:S.summary});toast('נשמר ב־Drive')});
+$('#fnDev').onclick=()=>busy($('#fnDev'),async()=>{if(await saveToDevice(await mineBuilt(),outName())!==false)actionDone('dev','הקובץ נשמר במכשיר ✓')});
+$('#fnShare').onclick=()=>busy($('#fnShare'),async()=>{const r=await shareFile(await mineBuilt(),outName());if(r==='shared')actionDone('share','הקובץ שותף ✓');else if(r==='saved')actionDone('dev','השיתוף לא נתמך כאן, הקובץ נשמר במכשיר ✓')});
+$('#fnDrive').onclick=()=>busy($('#fnDrive'),async()=>{await own('saveSigned',{name:S.name,pdf:toB64(await mineBuilt()),summary:S.summary});actionDone('drive','נשמר ב־Drive ✓')});
 $('#fnSend').onclick=()=>{$('#fnMenu').hidden=true;$('#sdForm').hidden=false};
 $('#sdBack').onclick=()=>{$('#fnMenu').hidden=false;$('#sdForm').hidden=true};
 const signLink=(id,t)=>`${location.origin}${location.pathname}?s=${encodeURIComponent(depId())}&d=${encodeURIComponent(id)}&t=${encodeURIComponent(t)}`;
 $('#sdGo').onclick=()=>busy($('#sdGo'),async()=>{const b=await mineBuilt();const fields=S.fields.filter(f=>f.other).map(f=>({page:f.page,x:f.x,y:f.y,w:f.w,h:f.h,type:f.type,label:f.label}));
  const r=await own('createSend',{name:S.name,pdf:toB64(b),fields,note:$('#sdNote').value.trim(),to:$('#sdTo').value.trim()});
  S.sendLink=signLink(r.id,r.token);$('#sdLink').textContent=S.sendLink;$('#sdForm').hidden=true;$('#sdDone').hidden=false;IDB.clear()});
-async function shareLink(link,name){if(navigator.share){try{await navigator.share({title:name,text:`${name} לחתימה`,url:link});return}catch(e){if(e&&e.name==='AbortError')return}}try{await navigator.clipboard.writeText(link);toast('הקישור הועתק')}catch(e){toast('העתיקו את הקישור ידנית')}}
-$('#sdShare').onclick=()=>shareLink(S.sendLink,S.name);
-$('#sdCopy').onclick=async()=>{try{await navigator.clipboard.writeText(S.sendLink);toast('הקישור הועתק')}catch(e){toast('לא הצלחתי להעתיק')}};
+async function shareLink(link,name){if(navigator.share){try{await navigator.share({title:name,text:`${name} לחתימה`,url:link});return true}catch(e){if(e&&e.name==='AbortError')return false}}try{await navigator.clipboard.writeText(link);toast('הקישור הועתק');return true}catch(e){toast('העתיקו את הקישור ידנית');return false}}
+$('#sdShare').onclick=async()=>{if(await shareLink(S.sendLink,S.name))actionDone('send','הקישור לחתימה נשלח ✓')};
+$('#sdCopy').onclick=async()=>{try{await navigator.clipboard.writeText(S.sendLink);actionDone('send','הקישור לחתימה הועתק ✓')}catch(e){toast('לא הצלחתי להעתיק')}};
 
 /* ================= signer ================= */
 function message(h,p,actions){$('#msgH').textContent=h;$('#msgP').textContent=p||'';const a=$('#msgA');a.innerHTML='';(actions||[]).forEach(([t,fn,primary])=>{const b=document.createElement('button');b.className=primary?'btn1':'btn2';b.textContent=t;b.onclick=fn;a.appendChild(b)});show('msg')}
