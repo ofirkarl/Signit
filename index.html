@@ -371,7 +371,7 @@ select.chip{padding:0 8px}
 
 <script>
 {
-const BUILD='2026-11-25 18:45';
+const BUILD='2026-11-25 18:47';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -969,7 +969,7 @@ document.addEventListener('keydown',e=>{const typing=/INPUT|TEXTAREA|SELECT/.tes
 /* ================= version & updates ================= */
 $('#buildV').textContent=BUILD;
 async function checkUpdate(){try{const r=await fetch('./?u='+Date.now(),{cache:'no-store'});const t=await r.text();const m=t.match(/const BUILD='([^']+)'/);if(m&&m[1]!==BUILD)$('#updBar').hidden=false}catch(e){}}
-$('#updB').onclick=async()=>{saveDraft();try{const regs=await navigator.serviceWorker?.getRegistrations?.();for(const r of regs||[])await r.update()}catch(e){}setTimeout(()=>location.reload(),300)};
+$('#updB').onclick=async()=>{if(S.bytes&&MODE==='owner'){clearTimeout(dT);await IDB.put({bytes:S.bytes,name:S.name,fields:S.fields,summary:S.summary,at:Date.now()})}try{const regs=await navigator.serviceWorker?.getRegistrations?.();for(const r of regs||[])await r.update()}catch(e){}setTimeout(()=>location.reload(),300)};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate()});setInterval(checkUpdate,5*60*1000);setTimeout(checkUpdate,4000);
 /* ================= start ================= */
 renderSig();
