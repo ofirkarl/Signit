@@ -542,12 +542,16 @@ function lineInfo(p,bl,fh,blanks){const items=(p.items||[]).filter(it=>it.s.trim
   if(ink){if(cur&&x-cur.x1<=gap&&!(blanks.some(o=>Math.abs(o.ly-bl.ly)<fh*.8&&o.x*sc>cur.x1&&o.x*sc<x)))cur.x1=x;else{cur={x0:x,x1:x};cl.push(cur)}}}
  const C=cl.map(c=>({x:c.x0/sc,w:(c.x1-c.x0+1)/sc,t:''})),segs=[];
  for(const it of items.filter(i=>!/_{2,}|[.…]{4,}/.test(i.s)).sort((a,b)=>S.rtl>=0?b.x-a.x:a.x-b.x)){let best=null,bo_=0;for(const c of C){const ov=Math.min(c.x+c.w,it.x+it.w)-Math.max(c.x,it.x);if(ov>bo_){bo_=ov;best=c}}if(best&&bo_>it.w*.4){best.t=(best.t?best.t+' ':'')+it.s.trim();best.fixed=1}}
- for(const it of items.filter(i=>/_{2,}|[.…]{4,}/.test(i.s))){mctx.font=`${it.h}px Arial`;const full=mctx.measureText(it.s).width||1,k=it.w/full;
-  for(const t of it.s.split(/_{2,}|[.…]{4,}/)){const w=t.trim();if(!w||/^[\s:.\-]+$/.test(w))continue;segs.push({t:w,w:mctx.measureText(w).width*k})}}
+ for(const it of items.filter(i=>/_{2,}|[.…]{4,}/.test(i.s))){mctx.font=`${it.h}px Arial`;const full=mctx.measureText(it.s).width||1,k=it.w/full,mine=[];
+  for(const t of it.s.split(/_{2,}|[.…]{4,}/)){const w=t.trim();if(!w||/^[\s:.\-]+$/.test(w))continue;mine.push({t:w,w:mctx.measureText(w).width*k})}
+  /* text in reading order: match by order; scrambled text: match by width */
+  const cov=C.filter(c=>!c.fixed&&c.x<it.x+it.w+2&&c.x+c.w>it.x-2).sort((a,b)=>it.dir==='rtl'?b.x-a.x:a.x-b.x);
+  if(it.dir==='rtl'&&cov.length===mine.length){cov.forEach((c,i)=>{c.t=mine[i].t;c.fixed=1})}else segs.push(...mine)}
  const pairs=[];
  segs.forEach((sg,i)=>C.forEach((c,j)=>c.fixed||pairs.push({i,j,e:Math.abs(sg.w-c.w)/Math.max(sg.w,c.w,1)})));pairs.sort((a,b)=>a.e-b.e);const ui=new Set(),uj=new Set();
  for(const q of pairs){if(q.e>.45)break;if(ui.has(q.i)||uj.has(q.j))continue;ui.add(q.i);uj.add(q.j);C[q.j].t=segs[q.i].t}
  return p.lines[key]={C,items}}
+function lineNext(p,bl,fh,blanks){const L=lineInfo(p,bl,fh,blanks);if(!L)return'';const R=bl.x+bl.w,rtl=S.rtl>=0;const c=rtl?L.C.filter(c=>c.t&&c.x+c.w<=bl.x+2&&bl.x-(c.x+c.w)<60).sort((a,b)=>b.x-a.x)[0]:L.C.filter(c=>c.t&&c.x>=R-2&&c.x-R<60).sort((a,b)=>a.x-b.x)[0];if(!c)return'';const w=c.t.split(/\s+/);return rtl?w[0]:w[0]}
 function lineLabel(p,bl,fh,blanks){const L=lineInfo(p,bl,fh,blanks);const R=bl.x+bl.w,rtl=S.rtl>=0;
  if(L){const right=L.C.filter(c=>c.t&&c.x>=R-2&&c.x-R<140).sort((a,b)=>a.x-b.x)[0],left=L.C.filter(c=>c.t&&c.x+c.w<=bl.x+2&&bl.x-(c.x+c.w)<140).sort((a,b)=>b.x-a.x)[0];
   const words=(c,end)=>{const w=c.t.replace(/[_.…]+/g,' ').trim().split(/\s+/);return(end?w.slice(-4):w.slice(0,4)).join(' ')};
@@ -633,9 +637,11 @@ async function detectPage(p,addFields){
  if(addFields){
   const formRects=out.slice();
   if(MODE==='owner'){await scanPage(p);
-   const blanks=findBlanks(p);for(const bl of blanks){const fh=fontNear(p,bl.ly-2);const r0={x:bl.x,y:bl.ly-12,w:bl.w,h:12};if(formRects.some(f=>overlap(f,r0)>.2))continue;if(!nearText(p,bl,fh))continue;
-    const label=lineLabel(p,bl,fh,blanks),t=classify(label);let h=clamp(fh*1.5,9,26);if(t==='sig'||t==='ini')h=clamp(bl.w*.3,22,46);
-    const nf=mk(p.n,{x:bl.x,y:bl.ly-h,w:bl.w,h},t,label,'auto');nf.ly=bl.ly;nf.fh=fh;nf.w0=bl.w;nf.l0=bl.x;nf.r0=bl.x+bl.w;nf.c0=bl.x+bl.w/2;out.push(nf)}}
+   const blanks=findBlanks(p);for(const bl of blanks){const fh=fontNear(p,bl.ly-2);const same=(p.items||[]).filter(it=>it.s.trim()&&Math.abs(it.base-bl.ly)<fh*.9&&it.x<bl.x+bl.w+220&&it.x+it.w>bl.x-220);if(same.length&&bl.ly<Math.max(...same.map(i=>i.base))-fh*.15)continue;const r0={x:bl.x,y:bl.ly-12,w:bl.w,h:12};if(formRects.some(f=>overlap(f,r0)>.2))continue;if(!nearText(p,bl,fh))continue;
+    const label=lineLabel(p,bl,fh,blanks),next=lineNext(p,bl,fh,blanks),MONTH=/^(ינואר|פברואר|מרץ|מרס|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)/;
+    const lastW=label.trim().split(/\s+/).pop()||'';let t=classify(label),noAuto=false;
+    if(MONTH.test(next.replace(/[^א-ת]/g,''))){t='dday';noAuto=!/ב?יום$/.test(lastW)}else if(MONTH.test(lastW.replace(/[^א-ת]/g,''))){t='dyear';noAuto=true}else if(t==='date'&&/תאריך/.test(lastW)&&!/^תאריך:?$/.test(label.trim()))noAuto=true;let h=clamp(fh*1.5,9,26);if(t==='sig'||t==='ini')h=clamp(bl.w*.3,22,46);
+    const nf=mk(p.n,{x:bl.x,y:bl.ly-h,w:bl.w,h},t,label,'auto');if(noAuto)nf.noAuto=1;if(t==='dday'&&noAuto)nf.label=(label?label+' · ':'')+'יום';if(t==='dyear'&&noAuto)nf.label=label+' · שנה';nf.ly=bl.ly;nf.fh=fh;nf.w0=bl.w;nf.l0=bl.x;nf.r0=bl.x+bl.w;nf.c0=bl.x+bl.w/2;out.push(nf)}}
   for(const it of items){const s=it.s.trim();if(s.length>30||!/חתימ|signature/i.test(s)||BL1.test(s))continue;
    if(out.some(f=>f.type==='sig'&&Math.abs((f.y+f.h)-it.base)<45&&f.x<it.x+it.w+170&&f.x+f.w>it.x-170))continue;
    const r=/:\s*$/.test(s)||/^:/.test(s)?{x:it.dir==='rtl'?it.x-150:it.x+it.w+8,y:it.base-30,w:140,h:32}:{x:it.x+it.w/2-70,y:it.y-38,w:140,h:32};
@@ -656,7 +662,9 @@ function fit(f){if(!TEXTY(f))return false;const p=S.pages[f.page-1];if(!p)return
  let x=an==='r'?f.r0-nw:an==='l'?f.l0:f.c0-nw/2;f.w=nw;f.x=clamp(x,4,p.vp.width-nw-4);return true}
 function hasVal(f){if(f.type==='sig')return!!(f.value&&S.sig);if(f.type==='ini')return!!(f.value&&S.ini);if(f.type==='check')return!!f.value;return String(f.value||'').trim()!==''}
 const inScope=f=>MODE==='signer'||!f.other;
-const sorted=()=>[...S.fields].sort((a,b)=>a.page-b.page||a.y-b.y||b.x-a.x);
+const sorted=()=>{const L=[...S.fields].sort((a,b)=>a.page-b.page||(a.y+a.h)-(b.y+b.h));const out=[];let row=[],rb=null,rp=null;
+ const flush=()=>{row.sort((a,b)=>S.rtl>=0?(b.x+b.w)-(a.x+a.w):a.x-b.x);out.push(...row);row=[]};
+ for(const f of L){const bot=f.y+f.h,tol=Math.max(6,(f.fh||11)*.7);if(row.length&&(f.page!==rp||Math.abs(bot-rb)>tol))flush();if(!row.length){rb=bot;rp=f.page}row.push(f)}flush();return out};
 const cleanLbl=l=>{l=String(l||'').replace(/[_.…"״'”“()\[\]]+/g,' ').replace(/\s+/g,' ').replace(/^[\s:]+|[\s:]+$/g,'');return /[א-תa-z]{2}/i.test(l)?l:''};
 const lbl=f=>cleanLbl(f.label)||TYPES[f.type].l;
 const BASE_GAP=1;const bo=f=>.1455*fs(f)-BASE_GAP;
@@ -811,7 +819,7 @@ $('#flist').addEventListener('click',e=>{const row=e.target.closest('.frow');if(
  openField(f)});
 
 /* autofill & auto signature */
-function autofill(silent){let n=0;if(!silent)snap();for(const f of S.fields){if(f.other||hasVal(f))continue;const k=TYPES[f.type].p;if(k&&S.profile[k]){f.value=S.profile[k];n++}else if(f.type!=='date'&&DATEY(f.type)){f.value=defVal(f.type);n++}else if(f.type==='date'&&(f.label||'').replace(/[^א-תa-z]/gi,'').length<=6){f.value=today();n++}}return n}
+function autofill(silent){let n=0;if(!silent)snap();for(const f of S.fields){if(f.other||hasVal(f)||f.noAuto)continue;const k=TYPES[f.type].p;if(k&&S.profile[k]){f.value=S.profile[k];n++}else if(f.type!=='date'&&DATEY(f.type)){f.value=defVal(f.type);n++}else if(f.type==='date'&&(f.label||'').replace(/[^א-תa-z]/gi,'').length<=6){f.value=today();n++}}return n}
 function autoSign(kind){let n=0;if(MODE!=='owner')return 0;for(const f of S.fields){if(f.other||f.value)continue;if((f.type==='sig'||f.type==='ini')&&(!kind||f.type===kind)&&S[f.type]){f.value=true;n++}}return n}
 function iniAll(){if(!S.bytes)return;snap();let n=0;for(const p of S.pages){if(S.fields.some(f=>f.page===p.n&&f.type==='ini'))continue;S.fields.push(mk(p.n,{x:36,y:p.vp.height-58,w:70,h:34},'ini','ראשי תיבות','manual',true));n++}renderFields();saveDraft();closeSheet();if(!S.ini)openPad('ini');else toast(`נוספו ראשי תיבות ב־${n} עמודים`)}
 $('#iniAllB').onclick=iniAll;
