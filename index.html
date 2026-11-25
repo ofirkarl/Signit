@@ -105,6 +105,14 @@ body.owner .f.cur .ctl{display:grid}
 #fzbox{position:absolute;border:2.5px solid var(--tab);border-radius:4px;background:rgba(255,224,74,.14);display:flex;align-items:center;color:#14206e;font-weight:500;overflow:hidden;white-space:nowrap;padding:0 3px}
 #fzbox img{height:100%;width:100%;object-fit:contain}
 #fzbox .ph{color:#9a8a40;font-weight:400}
+.inrow{display:flex;gap:8px;align-items:stretch}.inrow input{flex:1}
+.clr{flex:none;min-width:84px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);font-weight:700}
+.adj{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:8px;background:var(--bg);border-radius:14px;padding:6px 8px}
+.adj span{font-size:13px;color:var(--mut);margin-inline-end:2px}
+.adj button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:18px;touch-action:manipulation;user-select:none}
+.adj .sep{width:1px;height:28px;background:var(--line);margin:0 4px}
+.zhint{position:absolute;bottom:4px;inset-inline-start:8px;font-size:11px;color:#8a8f99;background:#fffc;border-radius:6px;padding:0 6px;pointer-events:none}
+body.owner #fzbox{cursor:grab;touch-action:none}
 .fedit input{width:100%;min-height:54px;font-size:18px;border:1.5px solid var(--ink);border-radius:14px;padding:0 14px;background:#fff}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip{min-height:38px;border-radius:999px;border:1px solid var(--line);background:var(--bg);padding:0 12px;font-size:14px}
@@ -258,7 +266,7 @@ select.chip{padding:0 8px}
  </div></div>
  <div id="fpanel" hidden><div>
   <div class="fhead"><b id="fpLbl"></b><span class="pos" id="fpPos"></span><button class="ib" id="fpClose" aria-label="סגירה">✕</button></div>
-  <div class="fzoom" id="fzoom"><canvas id="fzc"></canvas><div id="fzbox"></div></div>
+  <div class="fzoom" id="fzoom"><canvas id="fzc"></canvas><div id="fzbox"></div><span class="zhint own">גררו את המסגרת כדי להזיז</span></div>
   <div class="fedit" id="fpEdit"></div>
   <div class="fnav"><button class="btn2" id="fpPrev">→ הקודם</button><button class="btn1" id="fpNext">הבא ←</button></div>
  </div></div>
@@ -534,7 +542,7 @@ async function detectPage(p,addFields){
 
 /* ================= fields on the page ================= */
 const byId=id=>S.fields.find(f=>f.id===id);
-const fs=f=>Math.max(6,Math.min(f.h*.68,14));
+const fs=f=>Math.max(5,Math.min(f.h*.68,14)*(f.sz||1));
 function hasVal(f){if(f.type==='sig')return!!(f.value&&S.sig);if(f.type==='ini')return!!(f.value&&S.ini);if(f.type==='check')return!!f.value;return String(f.value||'').trim()!==''}
 const inScope=f=>MODE==='signer'||!f.other;
 const sorted=()=>[...S.fields].sort((a,b)=>a.page-b.page||a.y-b.y||b.x-a.x);
@@ -598,11 +606,15 @@ function renderFP(){const f=byId(FM);if(!f)return;const all=sorted().filter(inSc
  $('#fpLbl').textContent=lbl(f);$('#fpPos').textContent=i>=0?`${i+1} מתוך ${all.length}`:'של החותם';
  $('#fpPrev').disabled=i<=0;const last=i===all.length-1;$('#fpNext').textContent=last?(MODE==='signer'?'סיום ושליחה':'סיום'):'הבא ←';
  renderEdit(f);renderZoom(f)}
-let zTask=null;
+let zTask=null,Z=null,zT;
+function placeBox(f){if(!Z||Z.id!==f.id)return;$('#fzbox').style.cssText=`left:${(f.x-Z.rx)*Z.k}px;top:${(f.y-Z.ry)*Z.k}px;width:${f.w*Z.k}px;height:${f.h*Z.k}px;font-size:${fs(f)*Z.k}px`}
+function moved(f){const p=S.pages[f.page-1],e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.cssText=posCss(f,p);placeBox(f);saveDraft();clearTimeout(zT);zT=setTimeout(()=>{if(FM===f.id)renderZoom(f)},700)}
+function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];if(dz){f.sz=clamp(Math.round(((f.sz||1)+dz)*10)/10,.5,2.5);const e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.setProperty('--fs',fs(f))}
+ f.x=clamp(f.x+dx,0,p.vp.width-f.w);f.y=clamp(f.y+dy,0,p.vp.height-f.h);moved(f)}
 async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W)return;const dpr=Math.min(window.devicePixelRatio||1,3);
  let rw=Math.min(Math.max(f.w*1.6,200),p.vp.width),rh=rw*H/W;if(rh<f.h*2.4){rh=f.h*2.4;rw=rh*W/H}
  const rx=clamp(f.x+f.w/2-rw/2,0,Math.max(0,p.vp.width-rw)),ry=clamp(f.y+f.h/2-rh/2,0,Math.max(0,p.vp.height-rh)),s=W*dpr/rw,k=W/rw;
- const b=$('#fzbox');b.style.cssText=`left:${(f.x-rx)*k}px;top:${(f.y-ry)*k}px;width:${f.w*k}px;height:${f.h*k}px;font-size:${fs(f)*k}px`;zoomVal(f);
+ Z={rx,ry,k,id:f.id};placeBox(f);zoomVal(f);
  const c=document.createElement('canvas');c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
  if(zTask)try{zTask.cancel()}catch(e){}const my=zTask=p.page.render({canvasContext:ctx,viewport:p.page.getViewport({scale:s,offsetX:-rx*s,offsetY:-ry*s})});
  try{await my.promise}catch(e){return}if(my!==zTask||FM!==f.id)return;c.id='fzc';$('#fzc').replaceWith(c)}
@@ -613,10 +625,11 @@ function renderEdit(f){const E=$('#fpEdit'),own_=MODE==='owner',nm=f.type==='sig
  if(f.other&&own_)h=`<p class="muted" style="margin:4px 0">את השדה הזה ימלא החותם כששולחים לחתימה.</p>`;
  else if(f.type==='check')h=`<button class="btn2 wide" id="fpChk">${f.value?'✓ מסומן · לחצו לביטול':'לחצו לסימון ✓'}</button>`;
  else if(f.type==='sig'||f.type==='ini')h=S[f.type]?(f.value?`<div class="row"><button class="btn2" id="fpUnsign">הסרת ה${nm}</button><button class="btn2" id="fpRedraw">${nm} חדשה</button></div>`:`<div class="row"><button class="btn1" id="fpSign">הוספת ה${nm} כאן</button><button class="btn2" id="fpRedraw">${nm} אחרת</button></div>`):`<button class="btn1 wide" id="fpRedraw">ציור ${nm}</button>`;
- else{const im={id:'numeric',phone:'tel',biz:'numeric'}[f.type]||'text';h=`<input id="fpI" dir="auto" inputmode="${im}"${f.type==='email'?' type="email"':''} enterkeyhint="next" autocomplete="off" aria-label="${esc(lbl(f))}" placeholder="${esc(f.type==='date'?'dd/mm/yyyy':'הקלידו כאן')}">`;
+ else{const im={id:'numeric',phone:'tel',biz:'numeric'}[f.type]||'text';h=`<div class="inrow"><input id="fpI" dir="auto" inputmode="${im}"${f.type==='email'?' type="email"':''} enterkeyhint="next" autocomplete="off" aria-label="${esc(lbl(f))}" placeholder="${esc(f.type==='date'?'dd/mm/yyyy':'הקלידו כאן')}"><button class="clr" id="fpClr">ניקוי</button></div>`;
   const sug=[];if(f.type==='date'&&f.value!==today())sug.push(['היום',today()]);const pk=TYPES[f.type].p;if(own_&&pk&&S.profile[pk]&&S.profile[pk]!==f.value)sug.push([S.profile[pk],S.profile[pk]]);
   if(sug.length)h+=`<div class="chips">${sug.map((s,i)=>`<button class="chip" data-sug="${i}">${esc(s[0])}</button>`).join('')}</div>`;E._sug=sug}
- if(own_)h+=`<div class="chips"><select class="chip" id="fpType" aria-label="סוג השדה">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===f.type?' selected':''}>${v.l}</option>`).join('')}</select><button class="chip${f.other?' on':''}" id="fpWho">ממלא: ${f.other?'החותם':'אני'}</button><button class="chip" id="fpDel">מחיקת השדה</button></div>`;
+ if(own_&&!f.other)h+=`<div class="adj" aria-label="מיקום וגודל"><span>הזזה</span><button data-nd="0,-1" aria-label="למעלה">↑</button><button data-nd="0,1" aria-label="למטה">↓</button><button data-nd="1,0" aria-label="ימינה">→</button><button data-nd="-1,0" aria-label="שמאלה">←</button><i class="sep"></i><button data-nz="-0.1" aria-label="טקסט קטן יותר">A−</button><button data-nz="0.1" aria-label="טקסט גדול יותר">A+</button></div>`;
+ if(own_)h+=`<div class="chips"><select class="chip" id="fpType" aria-label="סוג השדה">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===f.type?' selected':''}>${v.l}</option>`).join('')}</select><button class="chip${f.other?' on':''}" id="fpWho">ממלא: ${f.other?'החותם':'אני'}</button><button class="chip" id="fpDel">ביטול שדה</button></div>`;
  E.innerHTML=h;const inp=$('#fpI');if(inp){inp.value=f.value||'';if(!('ontouchstart' in window))setTimeout(()=>inp.focus({preventScroll:true}),50)}}
 $('#fpEdit').addEventListener('input',e=>{if(e.target.id!=='fpI')return;const f=byId(FM);if(!f)return;if(!e.target.dataset.snap){snap();e.target.dataset.snap=1}f.value=e.target.value;zoomVal(f);refreshField(f);saveDraft()});
 $('#fpEdit').addEventListener('keydown',e=>{if(e.target.id==='fpI'&&e.key==='Enter'){e.preventDefault();stepField(1)}});
@@ -624,13 +637,24 @@ $('#fpEdit').addEventListener('change',e=>{const f=byId(FM);if(!f||e.target.id!=
 $('#fpEdit').addEventListener('click',e=>{const f=byId(FM);if(!f)return;const t=e.target.closest('button');if(!t)return;
  if(t.dataset.sug!=null){snap();f.value=$('#fpEdit')._sug[+t.dataset.sug][1];refreshField(f);renderFP();saveDraft();return}
  switch(t.id){
+  case'fpClr':{snap();f.value='';const i=$('#fpI');if(i){i.value='';i.focus()}zoomVal(f);refreshField(f);saveDraft();break}
   case'fpChk':snap();f.value=!f.value;refreshField(f);renderFP();saveDraft();break;
   case'fpSign':snap();f.value=true;refreshField(f);renderFP();saveDraft();break;
   case'fpUnsign':snap();f.value=false;refreshField(f);renderFP();saveDraft();break;
   case'fpRedraw':openPad(f.type,()=>{snap();f.value=true;refreshField(f);renderFP();saveDraft()});break;
   case'fpWho':snap();f.other=!f.other;f.value=f.other?(f.type==='check'?false:''):((f.type==='sig'||f.type==='ini')&&S[f.type]?true:f.value);renderFields();showField(f);saveDraft();break;
-  case'fpDel':{snap();const id=f.id;stepField(1);if(FM===id)closeField();S.fields=S.fields.filter(x=>x.id!==id);renderFields();if(FM)showField(byId(FM));saveDraft();toast('השדה נמחק',true);break}}});
+  case'fpDel':{snap();const id=f.id;stepField(1);if(FM===id)closeField();S.fields=S.fields.filter(x=>x.id!==id);renderFields();if(FM)showField(byId(FM));saveDraft();toast('השדה בוטל',true);break}}});
 
+let hold=null;
+$('#fpEdit').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-nd],[data-nz]');if(!b)return;e.preventDefault();const f=byId(FM);if(!f)return;snap();
+ const step=()=>{if(b.dataset.nd){const[x,y]=b.dataset.nd.split(',').map(Number);nudge(f,x,y,0)}else nudge(f,0,0,+b.dataset.nz)};step();
+ if(b.dataset.nd){clearInterval(hold);const t0=setTimeout(()=>{hold=setInterval(step,60)},380);const stop=()=>{clearTimeout(t0);clearInterval(hold);removeEventListener('pointerup',stop);removeEventListener('pointercancel',stop)};addEventListener('pointerup',stop);addEventListener('pointercancel',stop)}});
+/* drag the frame inside the zoomed view */
+$('#fzbox').addEventListener('pointerdown',e=>{if(MODE!=='owner'||!Z)return;const f=byId(FM);if(!f||f.other)return;e.preventDefault();const b=e.currentTarget;b.setPointerCapture(e.pointerId);
+ const sx=e.clientX,sy=e.clientY,ox=f.x,oy=f.y,p=S.pages[f.page-1];let mv=false;
+ const move=ev=>{const dx=(ev.clientX-sx)/Z.k,dy=(ev.clientY-sy)/Z.k;if(!mv){if(Math.abs(dx)+Math.abs(dy)<.5)return;mv=true;snap()}f.x=clamp(ox+dx,0,p.vp.width-f.w);f.y=clamp(oy+dy,0,p.vp.height-f.h);placeBox(f);const pe=$(`#pages .f[data-id="${f.id}"]`);if(pe)pe.style.cssText=posCss(f,p)};
+ const up=()=>{b.removeEventListener('pointermove',move);b.removeEventListener('pointerup',up);b.removeEventListener('pointercancel',up);if(mv)moved(f)};
+ b.addEventListener('pointermove',move);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up)});
 /* ================= fields list sheet ================= */
 function renderList(){const L=sorted();$('#flist').innerHTML=L.length?L.map(f=>`<div class="frow ${hasVal(f)?'done':''} ${f.other&&MODE==='owner'?'oth':''}" data-id="${f.id}"><button class="go"><span class="dot"></span><span class="l">${esc(lbl(f))}</span><span class="pg">עמ׳ ${f.page}</span></button>${MODE==='owner'?`<button class="chip${f.other?' on':''}" data-who>${f.other?'החותם':'אני'}</button>`:''}</div>`).join(''):'<p class="muted">לא זוהו שדות. הוסיפו שדה עם כפתור ＋.</p>'}
 $('#flist').addEventListener('click',e=>{const row=e.target.closest('.frow');if(!row)return;const f=byId(row.dataset.id);
