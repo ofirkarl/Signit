@@ -205,7 +205,7 @@ function ask(k, a) {
   const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    payload: JSON.stringify({ model: MODEL, max_tokens: 4000, messages: messages })
+    payload: JSON.stringify({ model: MODEL, max_tokens: Math.min(Number(a.max_tokens) || 4000, 8000), messages: messages })
   });
   const j = JSON.parse(r.getContentText());
   if (r.getResponseCode() !== 200) throw new Error((j.error && j.error.message) || ('API ' + r.getResponseCode()));
