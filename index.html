@@ -52,7 +52,7 @@ button,label[for]{cursor:pointer}
 .item .h{display:flex;gap:10px;align-items:baseline;justify-content:space-between}
 .item b{font-size:16px}
 .st{font-size:13px;font-weight:700;white-space:nowrap;border-radius:999px;padding:2px 10px}
-.st.pending{background:#fff1d6;color:var(--warn)}.st.signed{background:#dff3e7;color:var(--ok)}.st.self{background:#e6eaff;color:var(--pen)}
+.st.pending{background:#fff1d6;color:var(--warn)}.st.draft{background:#f1ede4;color:var(--mut,#6b6458)}.st.signed{background:#dff3e7;color:var(--ok)}.st.self{background:#e6eaff;color:var(--pen)}
 .conn{font-weight:700}.conn.on{color:var(--ok)}.conn.off{color:var(--mut)}
 .sigpv{height:84px;background:#fff;border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;margin:6px 0 8px;color:#8a8f99;font-size:14px}
 .sigpv img{max-height:72px;max-width:90%}
@@ -93,6 +93,9 @@ button,label[for]{cursor:pointer}
 #fab{position:fixed;left:16px;bottom:calc(var(--dbh,140px) + 14px);z-index:31;width:56px;height:56px;border-radius:18px;border:0;background:var(--acc);color:var(--ink);font-size:30px;line-height:1;box-shadow:0 4px 14px #0003}
 #dbar{position:fixed;inset:auto 0 0 0;z-index:30;background:var(--card);border-top:1px solid var(--line);padding:8px 12px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -6px 20px #0000000f}
 #dbar>div{max-width:720px;margin:0 auto}
+#dstat{display:flex;align-items:center;gap:10px;padding:2px 4px 8px}#dstat[hidden]{display:none}
+#dstat .ok{width:30px;height:30px;border-radius:50%;background:#dff3e7;color:var(--ok);display:grid;place-items:center;font-weight:800;flex:none}
+#dstat b{display:block;font-size:15px}#dstat small{display:block;color:var(--mut,#6b6458);font-size:13px}
 .dtabs{display:flex;gap:6px;margin-bottom:8px}
 .dtabs button{flex:1;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:15px}
 .drow{display:flex;gap:8px}.drow .btn1{flex:2}.drow .btn2{flex:1}
@@ -142,7 +145,9 @@ select.chip{padding:0 8px}
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--card);border-radius:22px 22px 0 0;max-height:86vh;overflow:auto;padding:6px 16px calc(18px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
 .grab{width:42px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 12px;position:relative}
 .grab::before{content:"";position:absolute;inset:-14px -60px}
-#sheet{touch-action:pan-y}#sheet.drag{transition:none}#sheet:not(.drag){transition:transform .2s}
+#sheet.drag{transition:none}#sheet:not(.drag){transition:transform .2s}
+#sheet .grab,#sheet .grabz{touch-action:none}
+.grabz{height:30px;margin:-6px -16px 0;position:sticky;top:-6px;z-index:2;background:var(--card);display:flex;align-items:center;justify-content:center;cursor:grab}.grabz .grab{margin:0}
 #sheet h2{font-size:20px;margin:0 0 4px}
 .mi{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;border:0;background:transparent;border-bottom:1px solid var(--line);text-align:start;font-size:16px;padding:6px 2px;color:var(--ink);text-decoration:none}
 .mi:last-child{border-bottom:0}
@@ -258,6 +263,7 @@ select.chip{padding:0 8px}
  <button id="fab" class="own" aria-label="הוספת שדה" title="הוספת שדה">＋</button>
  <div id="dbar"><div>
   <div class="dtabs"><button data-sheet="fields">שדות <span id="cntF"></span></button><button data-sheet="sign">חתימה</button><button data-sheet="agent" class="own">סוכן</button></div>
+  <div id="dstat" hidden><span class="ok">✓</span><span><b>המסמך הושלם</b><small id="dstatT"></small></span></div>
   <div class="drow"><button class="btn2" id="finishB">סיום</button><button class="btn1" id="nextB">מילוי שדות</button></div>
  </div></div>
  <div id="fpanel" hidden><div>
@@ -276,7 +282,7 @@ select.chip{padding:0 8px}
 
 <div id="scrim" hidden></div>
 <div id="sheet" hidden role="dialog" aria-modal="true">
- <div class="grab"></div>
+ <div class="grabz" aria-label="סגירה" role="button"><div class="grab"></div></div>
  <div class="sp" data-p="fields"><h2>שדות במסמך</h2><p class="muted own" style="margin:0 0 6px">לכל שדה: מי ממלא אותו. שדות "החותם" ימולאו על ידי הצד השני כששולחים לחתימה.</p><div id="flist"></div></div>
  <div class="sp" data-p="sign"><h2>חתימה</h2><b>חתימה</b><div class="sigpv" data-pv="sig"></div><div class="row"><button class="btn2" data-pad="sig">ציור או הקלדה</button><button class="btn2" data-clear="sig">מחיקה</button></div>
   <div class="mt"><b>ראשי תיבות</b><div class="sigpv" data-pv="ini"></div><div class="row"><button class="btn2" data-pad="ini">ציור או הקלדה</button><button class="btn2" data-clear="ini">מחיקה</button></div></div>
@@ -333,7 +339,7 @@ select.chip{padding:0 8px}
 
 <script>
 {
-const BUILD='2026-11-25 19:05';
+const BUILD='2026-11-25 19:40';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -378,7 +384,7 @@ $('#toastU').onclick=()=>{$('#toast').classList.remove('on');if(tFn)tFn()};
 /* ================= views, nav and the Android back button ================= */
 let cur='',layers=[];
 
-function show(v){if(v===cur)return;cur=v;
+function show(v){if(v===cur)return;cur=v;$('#toast').classList.remove('on');
  $$('.view').forEach(e=>e.hidden=e.id!=='v-'+v);
  if(v==='docs')loadDocs();if(v==='settings')loadSettings();
  if(v!=='doc')window.scrollTo(0,0)}
@@ -397,11 +403,11 @@ function showSheet(n){sheetName=n;$$('#sheet .sp').forEach(p=>p.hidden=p.dataset
 function hideSheet(){sheetName=null;$('#sheet').hidden=true;$('#scrim').hidden=true}
 function closeSheet(){if(!sheetName)return;if(layers[layers.length-1]==='sheet')history.back();else hideSheet()}
 $('#scrim').onclick=closeSheet;
-{const sh=$('#sheet');let sy=null,dy=0,t0=0;
- const start=e=>{if(!e.target.closest('.grab')&&sh.scrollTop>0)return;if(!e.target.closest('.grab')&&!e.target.closest('h2'))return;sy=e.clientY;dy=0;t0=Date.now();sh.classList.add('drag');sh.setPointerCapture?.(e.pointerId)};
+{const sh=$('#sheet');let sy=null,dy=0,t0=0,fg=false;
+ const start=e=>{const g=e.target.closest('.grabz');if(!g&&(sh.scrollTop>0||!e.target.closest('h2')))return;if(g)e.preventDefault();fg=!!g;sy=e.clientY;dy=0;t0=Date.now();sh.classList.add('drag');sh.setPointerCapture?.(e.pointerId)};
  sh.addEventListener('pointerdown',start);
  sh.addEventListener('pointermove',e=>{if(sy==null)return;dy=Math.max(0,e.clientY-sy);sh.style.transform=`translateY(${dy}px)`});
- const end=()=>{if(sy==null)return;const fast=dy>40&&Date.now()-t0<250;sy=null;sh.classList.remove('drag');if(dy>90||fast||dy<4&&Date.now()-t0<300){sh.style.transform='';closeSheet()}else sh.style.transform=''};
+ const end=e=>{if(sy==null)return;const fast=dy>40&&Date.now()-t0<250;sy=null;sh.classList.remove('drag');if(dy>80||fast||dy<10&&Date.now()-t0<350&&fg){sh.style.transform='';closeSheet()}else sh.style.transform=''};
  sh.addEventListener('pointerup',end);sh.addEventListener('pointercancel',()=>{sy=null;sh.classList.remove('drag');sh.style.transform=''})}
 $$('[data-sheet]').forEach(b=>b.onclick=()=>openSheet(b.dataset.sheet));
 
@@ -433,13 +439,17 @@ const IDB={db:null,async open(){if(this.db)return this.db;return this.db=await n
  async put(v){try{const db=await this.open();await new Promise((res,rej)=>{const t=db.transaction('d','readwrite');t.objectStore('d').put(v,'draft');t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}},
  async get(){try{const db=await this.open();return await new Promise(res=>{const r=db.transaction('d').objectStore('d').get('draft');r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null)})}catch(e){return null}},
  async clear(){try{const db=await this.open();db.transaction('d','readwrite').objectStore('d').delete('draft')}catch(e){}}};
-let dT;function saveDraft(){if(!S.bytes||MODE!=='owner')return;clearTimeout(dT);dT=setTimeout(()=>IDB.put({bytes:S.bytes,name:S.name,fields:S.fields,summary:S.summary,at:Date.now()}),600)}
-async function draftCard(box){const d=await IDB.get();if(!d||!d.bytes){box.innerHTML='';return}const when=new Date(d.at).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'});
- box.innerHTML=`<div class="item"><div class="h"><b></b><span class="st pending">טיוטה</span></div><span class="muted">נשמרה ${esc(when)}</span><div class="row mt"><button class="btn1" data-a="open">המשך</button><button class="btn2" data-a="del">מחיקה</button></div></div>`;
+let dT;function saveDraft(){if(!S.bytes||MODE!=='owner')return;clearTimeout(dT);dT=setTimeout(()=>IDB.put({bytes:S.bytes,name:S.name,fields:S.fields,summary:S.summary,done:[...S.doneActs],doneAt:S.doneAt||0,at:Date.now()}),600)}
+async function draftCard(box){const d=await IDB.get();if(!d||!d.bytes){box.innerHTML='';return}const dn=d.done||[],fin=dn.length>0,when=new Date(fin&&d.doneAt||d.at).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'});
+ const pill=!fin?'<span class="st draft">טיוטה</span>':dn.includes('send')?'<span class="st pending">נשלח · ממתין לחתימה</span>':'<span class="st signed">הושלם ✓</span>';
+ const sub=!fin?`נשמרה ${esc(when)}`:`${esc(doneText(dn))} · ${esc(when)}`+(dn.includes('send')?'<br>המסמך החתום יחזור אליך ל־Drive ויופיע ברשימה למטה':'');
+ box.innerHTML=`<div class="item${fin?' fin':''}"><div class="h"><b></b>${pill}</div><span class="muted">${sub}</span><div class="row mt">${fin?'<button class="btn2" data-a="open">פתיחה</button><button class="btn2" data-a="del">הסרה מהרשימה</button>':'<button class="btn1" data-a="open">המשך עריכה</button><button class="btn2" data-a="del">מחיקה</button>'}</div></div>`;
  box.querySelector('b').textContent=d.name+'.pdf';box.querySelector('[data-a=open]').onclick=()=>openBytes(d.bytes,d.name,d);box.querySelector('[data-a=del]').onclick=()=>{IDB.clear();box.innerHTML=''}}
 
 /* ================= home & documents list ================= */
 const STL={pending:'ממתין לחתימה',signed:'נחתם',self:'חתמתי ושמרתי'};
+const ACTL={dev:'נשמר במכשיר',share:'שותף',drive:'נשמר ב־Drive',send:'נשלח לחתימה'};
+const doneText=a=>['send','drive','dev','share'].filter(k=>a.includes(k)).map(k=>ACTL[k]).join(' · ');
 const fmtD=s=>s?new Date(s).toLocaleDateString('he-IL',{day:'numeric',month:'short'}):'';
 let DOCS=[];
 async function loadDocs(){draftCard($('#docsDraft'));const L=$('#docsL'),info=$('#docsInfo');
@@ -459,7 +469,7 @@ async function openBytes(bytes,name,preset){
  if(!pdfOk){toast('ספריות ה־PDF לא נטענו. בדקו חיבור ופתחו שוב.');return}
  let pdf;try{pdf=await pdfjsLib.getDocument({data:bytes.slice(),cMapUrl:PDFJS_DATA+'cmaps/',cMapPacked:true,standardFontDataUrl:PDFJS_DATA+'standard_fonts/'}).promise}catch(e){toast(e&&e.name==='PasswordException'?'הקובץ מוגן בסיסמה':'לא הצלחתי לפתוח את הקובץ');return}
  if(FM)hideField();
- S.doneActs=new Set();Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
+ S.doneActs=new Set();S.doneAt=0;Object.assign(S,{ready:false,rtl:0,bytes,name,pdf,pages:[],fields:[],undo:[],text:'',summary:null,chat:[],imgs:null});
  $('#docName').textContent=name;S.zoom=2;setZoom(1);$('#sum').innerHTML='';$('#chat').hidden=true;$('#msgs').innerHTML='';$('#sumStatus').textContent='';
  $('#noteV').hidden=!S.note;$('#noteV').textContent=S.note;
  if(MODE==='owner'){if(cur!=='doc')go('doc')}else show('doc');
@@ -467,7 +477,7 @@ async function openBytes(bytes,name,preset){
  for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n);const vp=page.getViewport({scale:1});const wrap=document.createElement('div');wrap.className='page';wrap.style.aspectRatio=vp.width+' / '+vp.height;wrap.dataset.n=n;wrap.innerHTML=`<canvas></canvas><div class="ov"></div><span class="pn">עמוד ${n} מתוך ${pdf.numPages}</span>`;box.appendChild(wrap);S.pages.push({n,page,vp,wrap,canvas:wrap.querySelector('canvas'),ov:wrap.querySelector('.ov')})}
  S.pages.forEach(p=>renderPage(p));
  const txt=[];for(const p of S.pages){txt.push(`--- עמוד ${p.n} ---\n`+await detectPage(p,!preset))}S.text=txt.join('\n');
- if(preset){S.fields=preset.fields||[];S.summary=preset.summary||null;if(S.summary)renderSummary(S.summary)}
+ if(preset){S.fields=preset.fields||[];S.summary=preset.summary||null;S.doneActs=new Set(preset.done||[]);S.doneAt=preset.doneAt||0;if(S.summary)renderSummary(S.summary)}
  else{const n=autofill(true),sg=autoSign();S.fields.forEach(fit);toast(`זוהו ${S.fields.length} שדות`+(n+sg?`, ${n+sg} מולאו אוטומטית (מסומנים בכחול לבדיקה)`:''))}
  S.ready=true;renderFields();saveDraft();sizeBar();
 }
@@ -648,10 +658,13 @@ function refreshField(f){const e=$(`#pages .f[data-id="${f.id}"]`);if(!e)return;
 const toReview=f=>f.auto&&!f.seen&&hasVal(f);
 function updateBar(){const L=S.fields.filter(inScope),done=L.filter(hasVal).length,left=L.length-done,rev=L.filter(toReview).length,nb=$('#nextB'),fb=$('#finishB');
  $('#cntF').textContent=L.length?`${done}/${L.length}`:'';
+ const fin=MODE==='owner'&&S.doneActs&&S.doneActs.size>0;$('#dstat').hidden=!fin;
+ if(fin){$('#dstatT').textContent=doneText([...S.doneActs])+(S.doneActs.has('send')?' · ממתין לחתימת הצד השני':'');nb.textContent='סגירת המסמך';nb.dataset.fin=1;fb.hidden=false;fb.textContent='פעולה נוספת';return}
+ delete nb.dataset.fin;
  if(!L.length){nb.textContent=MODE==='signer'?'שליחת המסמך החתום':'סיום';fb.hidden=true}
  else if(left||rev){nb.textContent=left?`מילוי שדות · ${done}/${L.length}`:`בדיקת ${rev} שדות שמולאו אוטומטית`;fb.hidden=false;fb.textContent=MODE==='signer'?'שליחה':'סיום'}
  else{nb.textContent=MODE==='signer'?'שליחת המסמך החתום':'סיום ושמירה';fb.hidden=true}}
-$('#nextB').onclick=()=>{setMin(false);const L=sorted().filter(inScope);const f=L.find(x=>!hasVal(x)||toReview(x));if(f)openField(f);else finish()};
+$('#nextB').onclick=()=>{if($('#nextB').dataset.fin){back();return}setMin(false);const L=sorted().filter(inScope);const f=L.find(x=>!hasVal(x)||toReview(x));if(f)openField(f);else finish()};
 $('#finishB').onclick=()=>finish();
 function finish(){if(MODE==='signer')submitSigned();else openSheet('finish')}
 
@@ -860,7 +873,7 @@ async function shareFile(bytes,name,text){const file=new File([bytes],name,{type
 async function busy(btn,fn){btn.disabled=true;try{return await fn()}catch(e){toast(errMsg(e));console.log(e)}finally{btn.disabled=false}}
 const mineBuilt=()=>buildPdf(f=>!f.other);
 S.doneActs=new Set();
-function actionDone(key,msg){S.doneActs.add(key);closeSheet();toast(msg,{label:'פעולה נוספת',fn:()=>openSheet('finish')})}
+function actionDone(key,msg){S.doneActs.add(key);S.doneAt=Date.now();saveDraft();updateBar();closeSheet();toast(msg)}
 
 /* finish sheet */
 function renderFinish(){const rev=S.fields.filter(f=>!f.other&&toReview(f)).length,left=S.fields.filter(f=>!f.other&&!hasVal(f)).length,theirs=S.fields.filter(f=>f.other).length;
