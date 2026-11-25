@@ -359,16 +359,20 @@ const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.par
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const HEB=/[֐-׿]/;
+const HMONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const DATEY=t=>['date','dday','dmonth','dyear'].includes(t);
+const defVal=t=>{const d=new Date();return t==='date'?today():t==='dday'?String(d.getDate()):t==='dmonth'?String(d.getMonth()+1):t==='dyear'?String(d.getFullYear()):''};
 const today=()=>{const d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()};
 const toB64=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)};
 const fromB64=b=>{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u};
 
-const TYPES={name:{l:'שם מלא',p:'name'},id:{l:'ת.ז',p:'id'},address:{l:'כתובת',p:'address'},phone:{l:'טלפון',p:'phone'},email:{l:'דוא״ל',p:'email'},biz:{l:'מס׳ עוסק',p:'biz'},date:{l:'תאריך'},text:{l:'טקסט'},check:{l:'סימון ✓'},sig:{l:'חתימה'},ini:{l:'ראשי תיבות'}};
+const TYPES={name:{l:'שם מלא',p:'name'},id:{l:'ת.ז',p:'id'},address:{l:'כתובת',p:'address'},phone:{l:'טלפון',p:'phone'},email:{l:'דוא״ל',p:'email'},biz:{l:'מס׳ עוסק',p:'biz'},date:{l:'תאריך'},dday:{l:'תאריך - יום'},dmonth:{l:'תאריך - חודש'},dyear:{l:'תאריך - שנה'},text:{l:'טקסט'},check:{l:'סימון ✓'},sig:{l:'חתימה'},ini:{l:'ראשי תיבות'}};
 const PROFILE=[['name','שם מלא'],['id','מספר תעודת זהות'],['address','כתובת'],['phone','טלפון'],['email','דוא״ל'],['biz','מספר עוסק / ח.פ']];
 const OTHER=/מעסיק|מעביד|החברה|המזמין|ההפקה|employer|company/i;
 const RULES=[[/ת\.?\s?ז|תעודת\s*זהות|מס['׳]?\s*זהות|\bID\b/i,'id'],[/ח\.?\s?פ\b|ע\.?\s?מ\b|עוסק/i,'biz'],[/דוא["״]?ל|אימייל|מייל|e-?mail/i,'email'],[/טלפון|נייד|טל['׳]|phone|mobile/i,'phone'],[/כתובת|address/i,'address'],[/תאריך|date/i,'date'],[/שם|name/i,'name']];
 function classify(s){const a=classify1(s);if(a!=='text'||!HEB.test(s||''))return a;return classify1([...s].reverse().join(''))}
-function classify1(s){s=s||'';if(/ראשי\s*תיבות|initials/i.test(s))return'ini';if(/חתימ|signature/i.test(s))return'sig';if(OTHER.test(s))return'text';for(const[r,t]of RULES)if(r.test(s))return t;return'text'}
+function classify1(s){s=(s||'').trim();if(/ראשי\s*תיבות|initials/i.test(s))return'ini';if(/חתימ|signature/i.test(s))return'sig';
+ if(/(^|\s)היום[:\s]*$/.test(s))return'date';if(/(^|\s)ב?יום[:\s]*$/.test(s))return'dday';if(/(^|\s)[לב]?חודש[:\s]*$/.test(s))return'dmonth';if(/(^|\s)ב?שנ[תה][:\s]*$/.test(s))return'dyear';if(OTHER.test(s))return'text';for(const[r,t]of RULES)if(r.test(s))return t;return'text'}
 const DEF_PRIO=['שכר: תעריף יומי או שעתי, מה כולל יום עבודה בסיסי','שעות נוספות: מתי מתחילות ובאיזה אחוז','מועד ואופן התשלום (תלוש או חשבונית, שוטף פלוס)','ביטול או דחייה של ימי צילום, ימי הכנה ונסיעות','נסיעות, חניה, אש״ל ולינה','ציוד: השכרה, ביטוח ואחריות לנזק','זכויות סוציאליות: פנסיה, חופשה, מחלה, הבראה','סיום התקשרות והודעה מוקדמת','סודיות, אי־תחרות וזכויות יוצרים','התאמה לתנאי איגוד אקט'];
 const DEF_ABOUT='אני פוקוס פולר בתעשיית הקולנוע והטלוויזיה בישראל, חבר באיגוד אקט.';
 
@@ -606,10 +610,11 @@ function undo(){if(!S.undo.length){toast('אין מה לבטל');return}S.fields
 /* page interactions */
 const pagesEl=$('#pages');
 /* long-press on an empty spot: add a field there */
+const SZ={text:[160,20],date:[90,20],dday:[40,20],dmonth:[70,20],dyear:[50,20],check:[16,16],sig:[150,46],ini:[70,34]};
 let lpT=null,lpAt=null,lpDone=false;
 function addFieldAt(pg,cx,cy,type){const p=S.pages[pg.dataset.n-1],r=pg.getBoundingClientRect(),k=r.width/p.vp.width;
- const sz={text:[160,20],date:[90,20],check:[16,16],sig:[150,46],ini:[70,34]}[type];const x=(cx-r.left)/k-sz[0]/2,y=(cy-r.top)/k-sz[1]/2;
- snap();const f=mk(p.n,{x:clamp(x,0,p.vp.width-sz[0]),y:clamp(y,0,p.vp.height-sz[1]),w:sz[0],h:sz[1]},type,TYPES[type].l,'manual');if(f.type==='date')f.value=today();
+ const sz=SZ[type]||[90,20];const x=(cx-r.left)/k-sz[0]/2,y=(cy-r.top)/k-sz[1]/2;
+ snap();const f=mk(p.n,{x:clamp(x,0,p.vp.width-sz[0]),y:clamp(y,0,p.vp.height-sz[1]),w:sz[0],h:sz[1]},type,TYPES[type].l,'manual');if(DATEY(f.type))f.value=defVal(f.type);
  if((f.type==='sig'||f.type==='ini')&&S[f.type])f.value=true;
  S.fields.push(f);renderFields();saveDraft();setMin(false);openField(f);return f}
 pagesEl.addEventListener('pointerdown',e=>{if(MODE!=='owner'||S.tool||e.target.closest('.f'))return;const pg=e.target.closest('.page');if(!pg)return;
@@ -653,7 +658,9 @@ function renderFP(){const f=byId(FM);if(!f)return;const all=sorted().filter(inSc
 let zTask=null,Z=null,zT;
 function placeBox(f){if(!Z||Z.id!==f.id)return;$('#fzbox').style.setProperty('--zk',Z.k);const h=$('#fzrz');if(h){h.hidden=MODE!=='owner'||f.other;h.style.left=((f.x+f.w-Z.rx)*Z.k)+'px';h.style.top=((f.y+f.h-Z.ry)*Z.k)+'px'}$('#fzbox').style.cssText=`--zk:${Z.k};left:${(f.x-Z.rx)*Z.k}px;top:${(f.y-Z.ry)*Z.k}px;width:${f.w*Z.k}px;height:${f.h*Z.k}px;font-size:${fs(f)*Z.k}px`}
 function moved(f){if(!f._fitting){f.r0=f.x+f.w;f.l0=f.x;f.c0=f.x+f.w/2}const p=S.pages[f.page-1],e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.cssText=posCss(f,p);placeBox(f);saveDraft();clearTimeout(zT);zT=setTimeout(()=>{if(FM===f.id)renderZoom(f)},700)}
-function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];if(dz){f.sz=clamp(Math.round(((f.sz||1)+dz)*10)/10,.5,2.5);fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.setProperty('--fs',fs(f))}
+function nudge(f,dx,dy,dz){const p=S.pages[f.page-1];
+ if(dz&&!TEXTY(f)){const k=1+dz*1.5,cx=f.x+f.w/2,cy=f.y+f.h/2;f.w=clamp(f.w*k,10,p.vp.width-8);f.h=clamp(f.h*k,8,p.vp.height-8);f.x=clamp(cx-f.w/2,0,p.vp.width-f.w);f.y=clamp(cy-f.h/2,0,p.vp.height-f.h);dz=0}
+ if(dz){f.sz=clamp(Math.round(((f.sz||1)+dz)*10)/10,.5,2.5);fit(f);f._fitting=1;const e=$(`#pages .f[data-id="${f.id}"]`);if(e)e.style.setProperty('--fs',fs(f))}
  f.x=clamp(f.x+dx,0,p.vp.width-f.w);f.y=clamp(f.y+dy,0,p.vp.height-f.h);if(dx||dy)delete f._fitting;moved(f);delete f._fitting}
 async function renderZoom(f){const p=S.pages[f.page-1],box=$('#fzoom'),W=box.clientWidth,H=box.clientHeight;if(!p||!W)return;const dpr=Math.min(window.devicePixelRatio||1,3);
  let rw=Math.min(Math.max(f.w*1.84,230),p.vp.width),rh=rw*H/W;if(rh<f.h*2.76){rh=f.h*2.76;rw=rh*W/H}
@@ -671,22 +678,25 @@ function renderEdit(f){const E=$('#fpEdit'),own_=MODE==='owner',nm=f.type==='sig
  if(f.other&&own_)h+=`<p class="muted" style="margin:4px 0">את השדה הזה ימלא החותם כששולחים לחתימה.</p>`;
  else if(f.type==='check')h+=`<button class="btn2 wide" id="fpChk">${f.value?'✓ מסומן · לחצו לביטול':'לחצו לסימון ✓'}</button>`;
  else if(f.type==='sig'||f.type==='ini')h+=S[f.type]?(f.value?`<div class="row"><button class="btn2" id="fpUnsign">הסרת ה${nm}</button><button class="btn2" id="fpRedraw">${nm} חדשה</button></div>`:`<div class="row"><button class="btn1" id="fpSign">הוספת ה${nm} כאן</button><button class="btn2" id="fpRedraw">${nm} אחרת</button></div>`):`<button class="btn1 wide" id="fpRedraw">ציור ${nm}</button>`;
- else{const im={id:'numeric',phone:'tel',biz:'numeric'}[f.type]||'text';h+=`<div class="inrow"><input id="fpI" dir="auto" inputmode="${im}"${f.type==='email'?' type="email"':''} enterkeyhint="next" autocomplete="off" aria-label="${esc(lbl(f))}" placeholder="${esc(f.type==='date'?'dd/mm/yyyy':'הקלידו כאן')}"><button class="clr" id="fpClr">ניקוי</button></div>`;
-  const sug=[];if(f.type==='date'&&f.value!==today())sug.push(['היום',today()]);const pk=TYPES[f.type].p;if(own_&&pk&&S.profile[pk]&&S.profile[pk]!==f.value)sug.push([S.profile[pk],S.profile[pk]]);
+ else{const im={id:'numeric',phone:'tel',biz:'numeric',dday:'numeric',dyear:'numeric'}[f.type]||'text';h+=`<div class="inrow"><input id="fpI" dir="auto" inputmode="${im}"${f.type==='email'?' type="email"':''} enterkeyhint="next" autocomplete="off" aria-label="${esc(lbl(f))}" placeholder="${esc(f.type==='date'?'dd/mm/yyyy':f.type==='dday'?'יום (1–31)':f.type==='dmonth'?'חודש':f.type==='dyear'?'שנה':'הקלידו כאן')}"><button class="clr" id="fpClr">ניקוי</button></div>`;
+  const sug=[];const dn=new Date();if(f.type==='date'&&f.value!==today())sug.push(['היום',today()]);
+  if(f.type==='dday')sug.push(['היום: '+dn.getDate(),String(dn.getDate())]);
+  if(f.type==='dmonth'){sug.push([String(dn.getMonth()+1),String(dn.getMonth()+1)]);sug.push([HMONTHS[dn.getMonth()],HMONTHS[dn.getMonth()]])}
+  if(f.type==='dyear')sug.push([String(dn.getFullYear()),String(dn.getFullYear())]);const pk=TYPES[f.type].p;if(own_&&pk&&S.profile[pk]&&S.profile[pk]!==f.value)sug.push([S.profile[pk],S.profile[pk]]);
   if(sug.length)h+=`<div class="chips">${sug.map((s,i)=>`<button class="chip" data-sug="${i}">${esc(s[0])}</button>`).join('')}</div>`;E._sug=sug}
- if(own_&&!f.other)h+=`<div class="adj" aria-label="מיקום וגודל"><span>הזזה</span><button data-nd="0,-1" aria-label="למעלה">↑</button><button data-nd="0,1" aria-label="למטה">↓</button><button data-nd="1,0" aria-label="ימינה">→</button><button data-nd="-1,0" aria-label="שמאלה">←</button><i class="sep"></i><button data-nz="-0.1" aria-label="טקסט קטן יותר">A−</button><button data-nz="0.1" aria-label="טקסט גדול יותר">A+</button></div>`;
+ if(own_&&!f.other)h+=`<div class="adj" aria-label="מיקום וגודל"><span>הזזה</span><button data-nd="0,-1" aria-label="למעלה">↑</button><button data-nd="0,1" aria-label="למטה">↓</button><button data-nd="1,0" aria-label="ימינה">→</button><button data-nd="-1,0" aria-label="שמאלה">←</button><i class="sep"></i>${TEXTY(f)?'<button data-nz="-0.1" aria-label="טקסט קטן יותר">A−</button><button data-nz="0.1" aria-label="טקסט גדול יותר">A+</button>':`<span>גודל</span><button data-nz="-0.1" aria-label="${nm} קטנה יותר">−</button><button data-nz="0.1" aria-label="${nm} גדולה יותר">＋</button>`}</div>`;
  if(own_)h+=`<div class="chips"><select class="chip" id="fpType" aria-label="סוג השדה">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===f.type?' selected':''}>${v.l}</option>`).join('')}</select><button class="chip${f.other?' on':''}" id="fpWho">ממלא: ${f.other?'החותם':'אני'}</button><button class="chip" id="fpDel">ביטול שדה</button></div>`;
  E.innerHTML=h;const inp=$('#fpI');if(inp){inp.value=f.value||'';if(!('ontouchstart' in window))setTimeout(()=>inp.focus({preventScroll:true}),50)}}
 $('#fpEdit').addEventListener('input',e=>{if(e.target.id!=='fpI')return;const f=byId(FM);if(!f)return;if(!e.target.dataset.snap){snap();e.target.dataset.snap=1}f.value=e.target.value;f._fitting=1;if(fit(f))moved(f);delete f._fitting;zoomVal(f);refreshField(f);saveDraft()});
 $('#fpEdit').addEventListener('keydown',e=>{if(e.target.id==='fpI'&&e.key==='Enter'){e.preventDefault();stepField(1)}});
-$('#fpEdit').addEventListener('change',e=>{const f=byId(FM);if(!f||e.target.id!=='fpType')return;snap();f.type=e.target.value;f.value=f.type==='check'?false:(f.type==='sig'||f.type==='ini')?(!f.other&&!!S[f.type]):(typeof f.value==='string'?f.value:'');renderFields();showField(f);saveDraft()});
+$('#fpEdit').addEventListener('change',e=>{const f=byId(FM);if(!f||e.target.id!=='fpType')return;snap();f.type=e.target.value;f.value=f.type==='check'?false:(f.type==='sig'||f.type==='ini')?(!f.other&&!!S[f.type]):DATEY(f.type)&&!f.other?defVal(f.type):(typeof f.value==='string'?f.value:'');renderFields();showField(f);saveDraft()});
 $('#fpEdit').addEventListener('click',e=>{const f=byId(FM);if(!f)return;const t=e.target.closest('button');if(!t)return;
  if(t.dataset.sug!=null){snap();f.value=$('#fpEdit')._sug[+t.dataset.sug][1];f._fitting=1;if(fit(f))moved(f);delete f._fitting;refreshField(f);renderFP();saveDraft();return}
  switch(t.id){
   case'_':break;
-  default:if(t.dataset.qt){snap();const nt=t.dataset.qt,p=S.pages[f.page-1],sz={text:[160,20],date:[90,20],check:[16,16],sig:[150,46],ini:[70,34]}[nt],cx=f.x+f.w/2,cy=f.y+f.h/2;
+  default:if(t.dataset.qt){snap();const nt=t.dataset.qt,p=S.pages[f.page-1],sz=SZ[nt]||[90,20],cx=f.x+f.w/2,cy=f.y+f.h/2;
    f.type=nt;f.label=TYPES[nt].l;f.w=sz[0];f.h=sz[1];f.x=clamp(cx-sz[0]/2,0,p.vp.width-sz[0]);f.y=clamp(cy-sz[1]/2,0,p.vp.height-sz[1]);f.sz=1;
-   f.value=nt==='date'?today():nt==='check'?true:(nt==='sig'||nt==='ini')?!!S[nt]:'';renderFields();showField(f);saveDraft();if((nt==='sig'||nt==='ini')&&!S[nt])openPad(nt,()=>{f.value=true;refreshField(f);renderFP()})}break;
+   f.value=DATEY(nt)?defVal(nt):nt==='check'?true:(nt==='sig'||nt==='ini')?!!S[nt]:'';renderFields();showField(f);saveDraft();if((nt==='sig'||nt==='ini')&&!S[nt])openPad(nt,()=>{f.value=true;refreshField(f);renderFP()})}break;
   case'fpClr':{snap();f.value='';f._fitting=1;if(fit(f))moved(f);delete f._fitting;const i=$('#fpI');if(i){i.value='';i.focus()}zoomVal(f);refreshField(f);saveDraft();break}
   case'fpChk':snap();f.value=!f.value;refreshField(f);renderFP();saveDraft();break;
   case'fpSign':snap();f.value=true;refreshField(f);renderFP();saveDraft();break;
@@ -698,7 +708,7 @@ $('#fpEdit').addEventListener('click',e=>{const f=byId(FM);if(!f)return;const t=
 let hold=null;
 $('#fpEdit').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-nd],[data-nz]');if(!b)return;e.preventDefault();const f=byId(FM);if(!f)return;snap();
  const step=()=>{if(b.dataset.nd){const[x,y]=b.dataset.nd.split(',').map(Number);nudge(f,x,y,0)}else nudge(f,0,0,+b.dataset.nz)};step();
- if(b.dataset.nd){clearInterval(hold);const t0=setTimeout(()=>{hold=setInterval(step,60)},380);const stop=()=>{clearTimeout(t0);clearInterval(hold);removeEventListener('pointerup',stop);removeEventListener('pointercancel',stop)};addEventListener('pointerup',stop);addEventListener('pointercancel',stop)}});
+ {clearInterval(hold);const t0=setTimeout(()=>{hold=setInterval(step,60)},380);const stop=()=>{clearTimeout(t0);clearInterval(hold);removeEventListener('pointerup',stop);removeEventListener('pointercancel',stop)};addEventListener('pointerup',stop);addEventListener('pointercancel',stop)}});
 /* resize handle in the zoomed view */
 $('#fzrz').addEventListener('pointerdown',e=>{if(MODE!=='owner'||!Z)return;const f=byId(FM);if(!f||f.other)return;e.preventDefault();e.stopPropagation();const h=e.currentTarget;h.setPointerCapture(e.pointerId);
  const sx=e.clientX,sy=e.clientY,ow=f.w,oh=f.h,p=S.pages[f.page-1];let mv=false;
@@ -718,7 +728,7 @@ $('#flist').addEventListener('click',e=>{const row=e.target.closest('.frow');if(
  openField(f)});
 
 /* autofill & auto signature */
-function autofill(silent){let n=0;if(!silent)snap();for(const f of S.fields){if(f.other||hasVal(f))continue;const k=TYPES[f.type].p;if(k&&S.profile[k]){f.value=S.profile[k];n++}else if(f.type==='date'&&(f.label||'').replace(/[^א-תa-z]/gi,'').length<=6){f.value=today();n++}}return n}
+function autofill(silent){let n=0;if(!silent)snap();for(const f of S.fields){if(f.other||hasVal(f))continue;const k=TYPES[f.type].p;if(k&&S.profile[k]){f.value=S.profile[k];n++}else if(DATEY(f.type)&&(f.label||'').replace(/[^א-תa-z]/gi,'').length<=6){f.value=defVal(f.type);n++}}return n}
 function autoSign(kind){let n=0;if(MODE!=='owner')return 0;for(const f of S.fields){if(f.other||f.value)continue;if((f.type==='sig'||f.type==='ini')&&(!kind||f.type===kind)&&S[f.type]){f.value=true;n++}}return n}
 function iniAll(){if(!S.bytes)return;snap();let n=0;for(const p of S.pages){if(S.fields.some(f=>f.page===p.n&&f.type==='ini'))continue;S.fields.push(mk(p.n,{x:36,y:p.vp.height-58,w:70,h:34},'ini','ראשי תיבות','manual',true));n++}renderFields();saveDraft();closeSheet();if(!S.ini)openPad('ini');else toast(`נוספו ראשי תיבות ב־${n} עמודים`)}
 $('#iniAllB').onclick=iniAll;
