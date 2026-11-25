@@ -202,12 +202,24 @@ function ask(k, a) {
       ? imgs.map(b => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b } })).concat([{ type: 'text', text: m.content }])
       : String(m.content)
   }));
-  const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+  // החשיבה של המודל נספרת בתוך max_tokens, לכן משאירים מקום גם לחשיבה וגם לתשובה
+  const out = Math.min(Number(a.max_tokens) || 4000, 8000);
+  const body = { model: MODEL, max_tokens: out + 8000, messages: messages, output_config: { effort: 'low' } };
+  let r = callClaude_(key, body);
+  if (r.code === 400 && /output_config|effort/i.test(r.msg)) { delete body.output_config; r = callClaude_(key, body); }
+  if (r.code !== 200) throw new Error(r.msg || ('API ' + r.code));
+  const text = (r.j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+  if (!text) throw new Error('הסוכן לא החזיר טקסט (stop_reason: ' + r.j.stop_reason + '). נסו שוב.');
+  return text;
+}
+
+function callClaude_(key, body) {
+  const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    payload: JSON.stringify({ model: MODEL, max_tokens: Math.min(Number(a.max_tokens) || 4000, 8000), messages: messages })
+    payload: JSON.stringify(body)
   });
-  const j = JSON.parse(r.getContentText());
-  if (r.getResponseCode() !== 200) throw new Error((j.error && j.error.message) || ('API ' + r.getResponseCode()));
-  return j.content.filter(c => c.type === 'text').map(c => c.text).join('');
+  let j = {};
+  try { j = JSON.parse(res.getContentText()); } catch (err) {}
+  return { code: res.getResponseCode(), j: j, msg: j.error && j.error.message };
 }
