@@ -1,7 +1,7 @@
 {
   "name": "Signit",
   "short_name": "Signit",
-  "description": "הסכמי השאלת רכב המצלמה – יצירה, חתימה ושמירה",
+  "description": "הסכמי רכב ומסמכים לחתימה: מילוי, חתימה, שליחה ושמירה",
   "lang": "he",
   "dir": "rtl",
   "id": "./",
@@ -17,6 +17,14 @@
     { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Signit מסמכים", "short_name": "מסמכים", "url": "./docs/", "icons": [ { "src": "docs/icon-192.png", "sizes": "192x192" } ] }
-  ]
+    { "name": "הסכמי רכב", "url": "./#car", "icons": [ { "src": "icon-192.png", "sizes": "192x192" } ] },
+    { "name": "מסמכים", "url": "./#docs", "icons": [ { "src": "docs/icon-192.png", "sizes": "192x192" } ] }
+  ],
+  "share_target": {
+    "action": "./share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": { "title": "title", "text": "text", "files": [ { "name": "file", "accept": ["application/pdf", ".pdf"] } ] }
+  },
+  "file_handlers": [ { "action": "./", "accept": { "application/pdf": [".pdf"] } } ]
 }
